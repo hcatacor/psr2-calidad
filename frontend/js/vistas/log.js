@@ -113,7 +113,7 @@ function pintar(el) {
     ? `<div class="vacio">Aún no se ha cargado el LOG.${cargaLog() ? ' Usa <b>Cargar LOG</b> con el Excel actual (hoja LOG).' : ''}</div>`
     : `<div class="toolbar" style="border:0;flex-wrap:wrap"><span class="small muted">${filas.length} filas · <b>${nObs}</b> observadas por revisar · mostrando ${Math.min(l.length, f.limite)} de ${l.length}</span>
       <span class="small"><span class="corr">■ Corregido por la app</span> <span class="muted">(acrónimos y listas ya acordados; el Excel del LOG sale como se llenó)</span></span></div>
-    ${l.length ? `<div class="tabla-wrap"><table class="tabla stack"><thead><tr><th>N°</th><th>Correlativo</th><th>CPC</th><th>Descripción</th><th>Localización</th><th>Fecha</th><th>Estatus</th><th>QC</th><th></th></tr></thead><tbody>
+    ${l.length ? `<div class="tabla-wrap"><table class="tabla stack"><thead><tr><th>N°</th><th>Correlativo</th><th>CPC</th><th>Descripción</th><th>Localización</th><th>Fecha</th><th>Estatus</th><th>QC</th><th>Dueño en la app</th><th></th></tr></thead><tbody>
       ${l.slice(0, f.limite).map((x) => `<tr class="click" data-id="${esc(x.ID)}">
         <td class="td-main">${esc(x.N)}</td>
         <td data-l="Correlativo" class="mono small">${esc(x.Codigo_Completo) || '<span class="muted">sin correlativo</span>'}</td>
@@ -123,6 +123,7 @@ function pintar(el) {
         <td data-l="Fecha">${esc(x.Fecha)}</td>
         <td data-l="Estatus">${esc(x.Estatus)}</td>
         <td data-l="QC" class="small">${esc(x.QC)}</td>
+        <td data-l="Dueño" class="small">${x.Usuario ? esc(nombreDe(x.Usuario)) : '<span class="muted">sin dueño</span>'}</td>
         <td>${observada(x) ? '<span class="badge b-Observado">OBS</span>' : x.Motivos ? '<span class="badge b-Validado">Revisada</span>' : ''}</td></tr>`).join('')}
     </tbody></table></div>
     ${l.length > f.limite ? '<div class="btn-row" style="justify-content:center;padding:12px"><button class="btn" id="g-mas">Ver más</button></div>' : ''}`
