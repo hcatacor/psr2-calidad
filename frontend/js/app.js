@@ -180,8 +180,9 @@ function pintarCabecera() {
   $('#brand-logo').innerHTML = m ? `<img src="${esc(m.logo)}" alt="${esc(m.consorcio)}">`
     : '<span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7"/><path d="M9 16.5l4.5 4.5L23 11.5"/></svg></span>';
   $('#user-chip').innerHTML = `<b>${esc(S.usuario.Nombre)}</b><span>${esc(S.usuario.Rol)}</span>`;
-  $('#user-chip').title = 'Cambiar mi contraseña';
-  $('#user-chip').onclick = () => pedirCambioClave(false);
+  // En Pruebas la contraseña es la de la App real: se cambia allá
+  $('#user-chip').title = CONFIG.ENTORNO ? 'Tu contraseña se cambia en la App real' : 'Cambiar mi contraseña';
+  $('#user-chip').onclick = CONFIG.ENTORNO ? () => toast('Tu contraseña es la misma de la App real: cámbiala allí.') : () => pedirCambioClave(false);
   const sel = $('#sel-proyecto');
   sel.hidden = S.proyectos.length < 2;
   sel.innerHTML = S.proyectos.map((p) => `<option value="${esc(p.ID_Proyecto)}" ${p.ID_Proyecto === S.proyecto ? 'selected' : ''}>${esc(p.ID_Proyecto)}</option>`).join('');

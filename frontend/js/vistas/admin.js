@@ -3,6 +3,7 @@ import { S, puede, soyYo } from '../state.js';
 import { $, esc, ico, opciones, modal, toast, tarea, confirmar, archivoParaApi,
   serieActiva, TIPOS_CAT, etiquetaCat, codigoVisual } from '../util.js';
 import { recargarBootstrap } from '../app.js';
+import { CONFIG } from '../config.js';
 
 const ORDEN_ROLES = ['Propietario', 'Coordinador General', 'Jefe de Área', 'Control Documentario', 'Auditor', 'Operador', 'Visitante'];
 const AREAS = ['Calidad', 'Topografía', 'Control documentario', 'Otro'];
@@ -40,9 +41,10 @@ function usuarios(c, root) {
   const lista = [...S.usuarios].sort((a, b) => ORDEN_ROLES.indexOf(a.Rol) - ORDEN_ROLES.indexOf(b.Rol) || a.Nombre.localeCompare(b.Nombre));
   const cuenta = (correo) => S.registros.filter((r) => r.Usuario === correo).length;
   c.innerHTML = `<div class="card">
-    <div class="card-head"><h2>Usuarios de ${esc(S.proyecto)} (${lista.length})</h2><button class="btn btn-primary btn-sm" id="u-nuevo">${ico('mas')}Nuevo usuario</button></div>
+    <div class="card-head"><h2>Usuarios de ${esc(S.proyecto)} (${lista.length})</h2>${CONFIG.ENTORNO ? '' : `<button class="btn btn-primary btn-sm" id="u-nuevo">${ico('mas')}Nuevo usuario</button>`}</div>
+    ${CONFIG.ENTORNO ? '<div class="card-pad small" style="padding-top:0"><b>Período de pruebas:</b> estos son los mismos usuarios de la App real. Para crear usuarios, cambiar roles o contraseñas, hazlo en la <b>App real</b>; aquí se actualizan solos.</div>' : ''}
     <div class="tabla-wrap"><table class="tabla stack"><thead><tr><th>Nombre completo</th><th>Usuario</th><th>Rol</th><th>Área</th><th>Estado</th><th class="num">Códigos</th></tr></thead><tbody>
-      ${lista.map((u) => `<tr class="${editable(u) ? 'click' : ''}" data-correo="${esc(u.Correo)}"><td class="td-main">${esc(u.Nombre)}</td>
+      ${lista.map((u) => `<tr class="${!CONFIG.ENTORNO && editable(u) ? 'click' : ''}" data-correo="${esc(u.Correo)}"><td class="td-main">${esc(u.Nombre)}</td>
         <td data-l="Usuario" class="mono">${esc(u.Usuario) || '<span class="muted">sin usuario</span>'}${u.Bloqueado ? ' <span class="badge b-Observado">Bloqueado</span>' : ''}</td>
         <td data-l="Rol"><span class="badge b-rol">${esc(u.Rol)}</span>${u.Global ? ' <span class="badge b-off">Todos los proyectos</span>' : ''}${u.Carga_Data ? ' <span class="badge b-Cargado">DATA</span>' : ''}</td><td data-l="Área">${esc(u.Area)}</td>
         <td data-l="Estado">${u.Activo ? '<span class="badge b-Validado">Activo</span>' : '<span class="badge b-off">Inactivo</span>'}</td>
@@ -54,6 +56,7 @@ function usuarios(c, root) {
       Se ingresa con <b>usuario y contraseña</b>: al crear el usuario se le da una contraseña inicial y la cambia en su primer ingreso.
       Si la olvida, ábrelo y usa <b>Restablecer contraseña</b>. Los usuarios nunca acceden al Sheet ni a Drive: todo es a través de la aplicación.
     </div>`;
+  if (CONFIG.ENTORNO) return; // en Pruebas los usuarios solo se ven: se gestionan en la App real
   $('#u-nuevo', c).onclick = () => editarUsuario(null, root);
   c.querySelectorAll('tr.click[data-correo]').forEach((tr) => { tr.onclick = () => editarUsuario(S.usuarios.find((u) => u.Correo === tr.dataset.correo), root); });
 }
