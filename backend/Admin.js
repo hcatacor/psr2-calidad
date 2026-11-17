@@ -40,7 +40,7 @@ function guardarUsuario_(ctx, d) {
   var miNivel = NIVEL[ctx.usuario.Rol];
   var yo = correo_(ctx.usuario.Correo);
 
-  return conLock_(function () {
+  var res = conLock_(function () {
     var u = buscarUsuario_(correo);
     var acceso = buscarAcceso_(correo, ctx.proyecto);
     var rolActual = u ? (u.Rol_Global || (acceso ? acceso.Rol : '')) : '';
@@ -97,6 +97,9 @@ function guardarUsuario_(ctx, d) {
     registrarHist_(hist_(ctx, rolActual ? 'Usuario actualizado' : 'Usuario creado', null, (u.Usuario || correo) + ' (' + u.Nombre + '): ' + (cambios.join(', ') || 'sin cambios'), ''));
     return usuarioPublico_(u, temporal ? { Clave_Temporal: temporal } : null);
   });
+  // Filas del LOG sin dueño cuyo QC es esta persona: pasan a ser suyas al crearla
+  try { vincularLogSinDueno_(ctx.proyecto); } catch (e) { console.warn('Vincular LOG: ' + e); }
+  return res;
 }
 
 // ---------------------------------------------------------------- Catálogos (Fase, Especialidad, Tramo, Tipo_Documento)

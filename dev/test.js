@@ -767,6 +767,17 @@ if (fsT.existsSync(logXlsx)) {
     assert.ok(ok2(env2.llamar('registros.codigosCPC', {}, p2)).includes('GNT1-F2-0026'));
     assert.strictEqual(ok2(env2.llamar('log.previsualizar', { base64: b64 }, p2)).cargar, 0, 'volver a cargar no duplica');
   });
+  t('al crear a Jonathan Camarena sus 107 filas del LOG (QC) pasan a ser suyas; no cambia dueños existentes', () => {
+    const sinDueno = () => ok2(env2.llamar('log.listar', {}, p2)).filter((l) => /CAMARENA/.test(l.QC) && !l.Usuario).length;
+    const antes = ok2(env2.llamar('log.listar', {}, p2));
+    assert.strictEqual(sinDueno(), 107);
+    const u = ok2(env2.llamar('usuarios.guardar', { Nombre: 'Jonathan Camarena', Usuario: 'jcamarena', Clave: 'Inicio2026', Rol: 'Operador', Area: 'Calidad', Activo: true }, p2));
+    const despues = ok2(env2.llamar('log.listar', {}, p2));
+    assert.strictEqual(despues.filter((l) => l.Usuario === u.Correo).length, 107);
+    assert.strictEqual(sinDueno(), 0);
+    let cambiadas = 0; antes.forEach((l, i) => { if (l.Usuario && l.Usuario !== despues[i].Usuario) cambiadas++; });
+    assert.strictEqual(cambiadas, 0, 'los dueños que ya tenían no cambian');
+  });
   t('resumen por grupo (EMD · GLB · PTS) según la columna V: CERRADO verde, ABIERTO rojo, vacío pendiente', () => {
     const r = ok2(env2.llamar('log.resumen', {}, p2));
     const g = Object.fromEntries(r.calidad.map((x) => [x.grupo, x]));

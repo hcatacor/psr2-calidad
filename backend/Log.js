@@ -396,8 +396,33 @@ function ejecutarLog_(ctx, d) {
 }
 
 /** El LOG del proyecto (lo ve todo usuario de Calidad, incluido el cliente). */
+/**
+ * Filas del LOG sin dueño (su QC no era usuario de la app al cargarlas): si ahora existe un usuario del proyecto
+ * con ese nombre, pasan a ser suyas. Solo escribe la columna Usuario y solo en filas vacías (nunca cambia un dueño).
+ */
+function vincularLogSinDueno_(proyecto) {
+  var us = usuariosDelProyecto_(proyecto);
+  var pend = leer_(SH.LOG).filter(function (l) { return l.Proyecto === proyecto && !l.Usuario && l.QC && duenoPorNombre(l.QC, us); });
+  if (!pend.length) return 0;
+  return conLock_(function () {
+    var col = HEADERS[SH.LOG].indexOf('Usuario') + 1, n = 0;
+    var logs = leer_(SH.LOG);
+    if (!logs.length) return 0;
+    var sh = hoja_(SH.LOG), primera = 2, ultima = logs[logs.length - 1]._fila;
+    var rg = sh.getRange(primera, col, ultima - primera + 1, 1), vals = rg.getValues();
+    logs.forEach(function (l) {
+      if (l.Proyecto !== proyecto || l.Usuario || !l.QC) return;
+      var c = duenoPorNombre(l.QC, us);
+      if (c) { vals[l._fila - primera][0] = c; n++; }
+    });
+    if (n) { rg.setNumberFormat('@'); rg.setValues(vals.map(function (v) { return [celda_(v[0])]; })); }
+    return n;
+  });
+}
+
 function listarLog_(ctx) {
   if (!veTodasLasAreas_(ctx) && (ctx.usuario.Area || 'Calidad') !== 'Calidad') throw err_('El LOG es de Calidad.', 'PERMISO');
+  vincularLogSinDueno_(ctx.proyecto);
   return leer_(SH.LOG).filter(function (l) { return l.Proyecto === ctx.proyecto; })
     .sort(function (a, b) { return int_(a.Orden, 0) - int_(b.Orden, 0); }).map(publico_);
 }
