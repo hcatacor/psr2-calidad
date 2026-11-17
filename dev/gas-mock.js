@@ -86,7 +86,7 @@ function crearEntorno({ usuarioEfectivo = 'propietario@usuarios.app', clientId =
     const a = archivos[id];
     if (!a) throw new Error('Archivo no existe ' + id);
     return {
-      getId: () => id, getName: () => a.nombre, setName: (n) => { a.nombre = n; return fileObj(id); },
+      getId: () => id, getName: () => a.nombre, getMimeType: () => a.mime, setName: (n) => { a.nombre = n; return fileObj(id); },
       getBlob: () => blob(a.bytes, a.mime, a.nombre), setTrashed: (t) => { a.trashed = t; },
       makeCopy: (n, carpeta) => { const nid = nuevoId('f'); archivos[nid] = { ...a, nombre: n, carpeta: carpeta.getId() }; if (sheetsPorId[id]) { const c = new Spreadsheet(n); c.hojas = JSON.parse(JSON.stringify(sheetsPorId[id].hojas)).map((h) => Object.assign(new Sheet(h.nombre), h)); sheetsPorId[nid] = c; c.id = nid; } return fileObj(nid); },
       moveTo: () => { },
