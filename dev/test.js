@@ -747,8 +747,12 @@ if (fsT.existsSync(logXlsx)) {
     assert.ok(ok2(env2.llamar('registros.codigosCPC', {}, p2)).includes('GNT1-F2-0026'));
     assert.strictEqual(ok2(env2.llamar('log.previsualizar', { base64: b64 }, p2)).cargar, 0, 'volver a cargar no duplica');
   });
-  t('resumen por grupo (EMD · GLB · PTS): concluido = CERRADO, observado = sin revisar, el resto pendiente', () => {
+  t('resumen por grupo (EMD · GLB · PTS) según la columna V: CERRADO verde, ABIERTO rojo, vacío pendiente', () => {
     const r = ok2(env2.llamar('log.resumen', {}, p2));
+    const g = Object.fromEntries(r.calidad.map((x) => [x.grupo, x]));
+    igual([g.EMD.concluidos, g.EMD.observados, g.EMD.pendientes], [144, 0, 51]);
+    igual([g.GLB.concluidos, g.GLB.observados], [239, 18]);
+    igual([g.PTS.concluidos, g.PTS.observados, g.PTS.pendientes], [61, 26, 32]);
     const tot = r.calidad.reduce((a, g) => a + g.total, 0);
     assert.strictEqual(tot, r.calidadFilas);
     igual(r.calidad.map((g) => g.grupo), ['EMD', 'GLB', 'PTS']);

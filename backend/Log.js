@@ -503,6 +503,11 @@ function sincronizarLog_(ctx, reg, serie, datos) {
 var GRUPOS_RESUMEN = [['EMD', 'Muros'], ['GLB', 'Todo'], ['PTS', 'Puente Santa Rosa']];
 
 /** Tramo de una fila del LOG: el del correlativo; si no tiene, se deduce de la columna TRAMO. */
+function estadoCalidadLog(l) {
+  var e = String(l.Estatus || '').trim().toUpperCase();
+  return e === 'CERRADO' ? 'concluidos' : e === 'ABIERTO' ? 'observados' : 'pendientes';
+}
+
 function grupoDeLog(l) {
   var p = String(l.Codigo_Completo || '').split('-');
   if (p.length >= 7) return p[4];
@@ -531,10 +536,9 @@ function resumenGruposLog_(ctx) {
   var todas = veTodasLasAreas_(ctx), area = ctx.usuario.Area || 'Calidad';
   if (todas || area === 'Calidad') {
     var logs = leer_(SH.LOG).filter(function (l) { return l.Proyecto === ctx.proyecto; });
-    out.calidad = resumenGrupos(logs, grupoDeLog, function (l) {
-      if (l.Motivos && !l.Revisado_Por) return 'observados';
-      return String(l.Estatus).trim().toUpperCase() === 'CERRADO' ? 'concluidos' : 'pendientes';
-    });
+    // Calidad se mide SOLO por la columna V (Estatus): CERRADO = concluido (verde), ABIERTO = abierto (rojo, clave
+    // 'observados'), vacío = pendiente. Las observaciones de la carga se siguen viendo en la vista LOG.
+    out.calidad = resumenGrupos(logs, grupoDeLog, estadoCalidadLog);
     out.calidadFilas = logs.length;
   }
   if (todas || area === 'Topografía') {

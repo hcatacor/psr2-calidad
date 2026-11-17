@@ -20,17 +20,19 @@ const CONTROL = [['Estatus', 'Estatus'], ['Transmital', 'Transmital CPC'], ['Fec
 const GRUPOS = [['EMD', 'Muros'], ['GLB', 'Todo'], ['PTS', 'Puente Santa Rosa']];
 const grupoDe = (l) => { const p = String(l.Codigo_Completo || '').split('-'); if (p.length >= 7) return p[4];
   const t = String(l.Tramo || '').toUpperCase(); return /PUENTE/.test(t) ? 'PTS' : /ACCESO|DU[AÁ]REZ|MURO/.test(t) ? 'EMD' : 'GLB'; };
-const estadoDe = (l) => (l.Motivos && !l.Revisado_Por ? 'observados' : String(l.Estatus).trim().toUpperCase() === 'CERRADO' ? 'concluidos' : 'pendientes');
+// Calidad: solo la columna V (Estatus). CERRADO = concluido · ABIERTO = abierto (rojo) · vacío = pendiente
+const estadoDe = (l) => { const e = String(l.Estatus || '').trim().toUpperCase(); return e === 'CERRADO' ? 'concluidos' : e === 'ABIERTO' ? 'observados' : 'pendientes'; };
+const NOTA_CALIDAD = 'Según la columna V (Estatus) del LOG: Concluido = CERRADO · Abierto = ABIERTO · Pendiente = sin estatus.';
 const pct = (a, b) => (b ? ((a / b) * 100).toFixed(1) : '0.0');
 
 /** Tarjeta con una barra por grupo: concluidos (verde) · pendientes (ámbar) · observados (rojo). */
-export function htmlResumen(titulo, grupos, nota = '') {
+export function htmlResumen(titulo, grupos, nota = '', rojo = 'Observados') {
   return `<div class="card card-pad resumen-g"><h2 style="margin:0 0 4px">${esc(titulo)}</h2>
     ${grupos.map((g) => `<div class="rg">
       <div class="rg-head"><b>${esc(g.grupo)} <span class="muted" style="font-weight:500">· ${esc(g.nombre)}</span></b></div>
       <div class="rg-sub"><span>Total usados: ${g.total}</span><span class="rg-pct">${pct(g.concluidos, g.total)}% concluidos</span></div>
-      <div class="rg-bar">${g.total ? ['concluidos', 'pendientes', 'observados'].map((k) => g[k] ? `<i class="rg-${k}" style="width:${(g[k] / g.total) * 100}%" title="${g[k]} ${k}"></i>` : '').join('') : ''}</div>
-      <div class="rg-ley"><span class="rg-t-concluidos">● ${g.concluidos} Concluidos</span><span class="rg-t-pendientes">● ${g.pendientes} Pendientes</span><span class="rg-t-observados">● ${g.observados} Observados</span></div>
+      <div class="rg-bar">${g.total ? ['concluidos', 'pendientes', 'observados'].map((k) => g[k] ? `<i class="rg-${k}" style="width:${(g[k] / g.total) * 100}%" title="${g[k]} ${k === 'observados' ? rojo.toLowerCase() : k}"></i>` : '').join('') : ''}</div>
+      <div class="rg-ley"><span class="rg-t-concluidos">● ${g.concluidos} Concluidos</span><span class="rg-t-pendientes">● ${g.pendientes} Pendientes</span><span class="rg-t-observados">● ${g.observados} ${rojo}</span></div>
     </div>`).join('')}
     ${nota ? `<div class="rg-nota small muted">${nota}</div>` : ''}</div>`;
 }
@@ -53,7 +55,7 @@ export async function pintarResumenPanel(cont) {
 function pintarResumen(cont, r) {
   const cards = [];
   if (r.calidad) cards.push(htmlResumen('Calidad · estado por grupo', r.calidad,
-    r.calidadFilas ? 'Desde el LOG. Concluido = CERRADO · Observado = con observación sin revisar · el resto pendiente.' : 'Aún no se ha cargado el LOG.'));
+    r.calidadFilas ? NOTA_CALIDAD : 'Aún no se ha cargado el LOG.', 'Abiertos'));
   if (r.topografia) cards.push(htmlResumen('Topografía · estado por grupo', r.topografia, 'Desde los códigos de Topografía (resumen). Concluido = histórico, cargado o validado.'));
   cont.innerHTML = cards.length ? `<div class="grid ${cards.length > 1 ? 'grid-2' : ''}" style="margin-top:16px">${cards.join('')}</div>` : '';
 }
@@ -106,7 +108,7 @@ function pintar(el) {
   });
   const nObs = filas.filter(observada).length;
   const rz = $('#g-resumen', el);
-  if (rz) rz.innerHTML = filas.length ? htmlResumen('Estado por grupo', resumenDe(filas), 'Concluido = CERRADO · Observado = con observación sin revisar · el resto pendiente.') : '';
+  if (rz) rz.innerHTML = filas.length ? htmlResumen('Estado por grupo', resumenDe(filas), NOTA_CALIDAD, 'Abiertos') : '';
   $('#g-lista', el).innerHTML = !filas.length
     ? `<div class="vacio">Aún no se ha cargado el LOG.${cargaLog() ? ' Usa <b>Cargar LOG</b> con el Excel actual (hoja LOG).' : ''}</div>`
     : `<div class="toolbar" style="border:0;flex-wrap:wrap"><span class="small muted">${filas.length} filas · <b>${nObs}</b> observadas por revisar · mostrando ${Math.min(l.length, f.limite)} de ${l.length}</span>
