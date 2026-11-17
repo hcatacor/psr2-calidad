@@ -19,6 +19,7 @@ function usuarioPublico_(u, extra) {
  * Sin correo, el identificador interno es <usuario>@usuarios.app (no se muestra ni se usa para ingresar).
  */
 function guardarUsuario_(ctx, d) {
+  exigirNoPruebas_();
   exigir_(ctx, 'administrar');
   var nombre = txt_(d.Nombre);
   if (!nombre) throw err_('Indica el nombre completo.', 'VALIDACION');

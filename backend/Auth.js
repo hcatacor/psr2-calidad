@@ -144,9 +144,56 @@ function exigirDuenoOAdmin_(ctx, reg) {
   throw err_('Solo el dueño del código o el jefe de área puede hacer esto.', 'PERMISO');
 }
 
+// ---------------------------------------------------------------- Período de pruebas: mismos usuarios que la real
+// En el proyecto de PRUEBAS los usuarios, contraseñas y accesos vienen SIEMPRE de la app real: se crean y se
+// cambian allá. Al ingresar a Pruebas se copian (solo LECTURA de la base real; nunca se escribe en ella).
+
+function esPruebas_() { return PropertiesService.getScriptProperties().getProperty('ENTORNO') === 'PRUEBAS'; }
+
+var MSG_USUARIOS_REAL = 'En el período de pruebas los usuarios y contraseñas son los de la App real: créalos o cámbialos allí.';
+function exigirNoPruebas_() { if (esPruebas_()) throw err_(MSG_USUARIOS_REAL, 'NEGOCIO'); }
+
+/** Base de datos de la app real (se ubica por su nombre la primera vez y se recuerda). */
+function ssReal_() {
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty('SS_ID_REAL');
+  if (!id) {
+    var it = DriveApp.getFilesByName('PSR2 Calidad - Base de datos'), ids = [];
+    while (it.hasNext()) { var f = it.next(); if (!f.isTrashed() && f.getMimeType() === MimeType.GOOGLE_SHEETS) ids.push(f.getId()); }
+    if (ids.length !== 1) throw err_('No se ubicó la base de la app real (' + ids.length + ' encontradas).', 'CONFIG');
+    id = ids[0];
+    props.setProperty('SS_ID_REAL', id);
+  }
+  if (id === prop_('SS_ID')) throw err_('La base real no puede ser la misma de pruebas.', 'CONFIG');
+  return SpreadsheetApp.openById(id);
+}
+
+/** Copia Usuarios y Accesos de la real a Pruebas (conserva solo los intentos/bloqueo locales). */
+function espejarUsuariosDeReal_() {
+  var ss = ssReal_();
+  var ru = leerDe_(ss, SH.USUARIOS), ra = leerDe_(ss, SH.ACCESOS);
+  conLock_(function () {
+    var loc = {}, lu = leer_(SH.USUARIOS);
+    lu.forEach(function (u) { loc[correo_(u.Correo)] = u; });
+    ru.forEach(function (u) {
+      var l = loc[correo_(u.Correo)];
+      u.Intentos = l ? l.Intentos : ''; u.Bloqueado_Hasta = l ? l.Bloqueado_Hasta : '';
+    });
+    var firma = function (lista, nombre) { return JSON.stringify(lista.map(function (o) { return filaDe_(nombre, o); })); };
+    if (firma(ru, SH.USUARIOS) !== firma(lu, SH.USUARIOS)) reescribir_(SH.USUARIOS, ru);
+    if (firma(ra, SH.ACCESOS) !== firma(leer_(SH.ACCESOS), SH.ACCESOS)) reescribir_(SH.ACCESOS, ra);
+  });
+}
+
 function login_(data) {
   var usuario = normUsuario_(data.usuario), clave = String(data.clave || '');
   if (!usuario || !clave) throw err_('Escribe tu usuario y contraseña.', 'AUTH');
+  if (esPruebas_()) {
+    espejarUsuariosDeReal_();
+    var pu = buscarPorUsuario_(usuario);
+    if (pu && esTrue_(pu.Cambiar_Clave) && pu.Clave_Hash && hashClave_(clave, pu.Clave_Sal) === pu.Clave_Hash) {
+      throw err_('Primero ingresa a la App real con tu contraseña temporal y crea la tuya; después usa esa misma aquí.', 'AUTH');
+    }
+  }
   var u = conLock_(function () {
     var x = buscarPorUsuario_(usuario);
     var malo = err_('Usuario o contraseña incorrectos.', 'AUTH');
@@ -175,6 +222,7 @@ function login_(data) {
 
 /** Cambio de contraseña del propio usuario (obligatorio en el primer ingreso). */
 function cambiarClave_(ctx, d) {
+  exigirNoPruebas_();
   return conLock_(function () {
     var u = buscarUsuario_(ctx.usuario.Correo);
     if (!u.Clave_Hash || hashClave_(String(d.actual || ''), u.Clave_Sal) !== u.Clave_Hash) throw err_('La contraseña actual no es correcta.', 'VALIDACION');
@@ -190,6 +238,7 @@ function cambiarClave_(ctx, d) {
 /** El jefe de área (o superior) restablece la contraseña de un usuario de nivel inferior: le da una temporal. */
 function restablecerClave_(ctx, d) {
   exigir_(ctx, 'administrar');
+  exigirNoPruebas_();
   var correo = correo_(d.Correo);
   if (correo === correo_(ctx.usuario.Correo)) throw err_('Para tu propia contraseña usa "Cambiar contraseña".', 'VALIDACION');
   return conLock_(function () {

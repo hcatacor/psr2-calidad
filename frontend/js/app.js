@@ -74,7 +74,7 @@ function mostrarLogin(mensaje = '', info = false) {
     sel.innerHTML = `<span class="small muted">Ingresar a</span>
       <div class="segs"><button type="button" class="seg ${CONFIG.ENTORNO ? '' : 'on'}" data-ent="">App real</button>
         <button type="button" class="seg ${CONFIG.ENTORNO ? 'on on-NO' : ''}" data-ent="PRUEBAS">Período de pruebas</button></div>
-      <span class="small muted">${CONFIG.ENTORNO ? 'Datos de práctica, separados de la app real.' : `Período de pruebas disponible hasta el ${fin}.`}</span>`;
+      <span class="small muted">${CONFIG.ENTORNO ? 'Datos de práctica, separados de la app real. Entra con tu mismo usuario y contraseña de la App real.' : `Período de pruebas disponible hasta el ${fin}.`}</span>`;
     sel.querySelectorAll('[data-ent]').forEach((b) => {
       b.onclick = () => { elegirEntorno(b.dataset.ent); pintarEntorno(); S.token = leerToken(); mostrarLogin(); };
     });

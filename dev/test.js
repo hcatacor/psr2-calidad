@@ -76,6 +76,26 @@ t('setup entrega usuario + contraseña temporal; con la temporal solo se puede c
   const r2 = e2.llamar('login', { usuario: 'lsalazar', clave: 'Puente2026x' });
   assert.ok(r2.ok && r2.data.cambiarClave === false);
 });
+t('PRUEBAS usa los usuarios y contraseñas de la real, sin escribir nunca en la real', () => {
+  const e = crearEntorno(); const cred = e.contexto.setup(); const c = e.contexto;
+  const P = c.PropertiesService.getScriptProperties(), real = P.getProperty('SS_ID');
+  const pr = c.DriveApp.getFileById(real).makeCopy('PSR2 Calidad - Base de datos (PRUEBAS)', c.DriveApp.getFolderById(P.getProperty('ROOT_ID')));
+  const les = cred.find((x) => x.Usuario === 'lsalazar'), edu = cred.find((x) => x.Usuario === 'eduardo');
+  // en la real Lesllye crea su contraseña; Pruebas quedó con la temporal
+  const r = e.llamar('login', { usuario: 'lsalazar', clave: les.Clave_Temporal });
+  assert.ok(e.llamar('cuenta.cambiarClave', { actual: les.Clave_Temporal, nueva: 'Puente2026x' }, r.data.token).ok);
+  const fotoReal = () => JSON.stringify(e.sheetsPorId[real].hojas.filter((h) => ['Usuarios', 'Accesos'].includes(h.nombre)).map((h) => h.datos));
+  const antes = fotoReal();
+  P.setProperty('SS_ID', pr.getId()); P.setProperty('ENTORNO', 'PRUEBAS'); P.setProperty('SS_ID_REAL', real); c.__ss = null;
+  const r2 = e.llamar('login', { usuario: 'lsalazar', clave: 'Puente2026x' });
+  assert.ok(r2.ok && r2.data.cambiarClave === false, 'entra a Pruebas con la contraseña de la real');
+  falla(e.llamar('login', { usuario: 'lsalazar', clave: les.Clave_Temporal }), 'AUTH');
+  falla(e.llamar('cuenta.cambiarClave', { actual: 'Puente2026x', nueva: 'Otra2026xx' }, r2.data.token), 'NEGOCIO');
+  falla(e.llamar('usuarios.guardar', { Nombre: 'Karla Prueba', Usuario: 'karla', Clave: 'Karla2026xx', Rol: 'Operador', Area: 'Calidad' }, r2.data.token), 'NEGOCIO');
+  const r3 = e.llamar('login', { usuario: 'eduardo', clave: edu.Clave_Temporal });
+  assert.ok(!r3.ok && /App real/.test(r3.error), 'con temporal: primero la real');
+  assert.strictEqual(fotoReal(), antes, 'la real no se tocó desde Pruebas');
+});
 t('el jefe restablece la contraseña de un nivel inferior (temporal); no la de su nivel o superior', () => {
   const tj = env.login(JEFE), tl = env.login(LES), tn = env.login(JEN);
   const r = exito(env.llamar('usuarios.restablecerClave', { Correo: LES }, tj));

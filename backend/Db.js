@@ -25,7 +25,13 @@ function celda_(v) {
 
 /** Lee toda la tabla como objetos { Header: valor, _fila: n }. */
 function leer_(nombre) {
-  var sh = hoja_(nombre);
+  return leerDe_(db_(), nombre);
+}
+
+/** Igual que leer_, pero de otra base (solo lectura: la usa Pruebas para leer los usuarios de la app real). */
+function leerDe_(ss, nombre) {
+  var sh = ss.getSheetByName(nombre);
+  if (!sh) throw err_('Falta la hoja "' + nombre + '".', 'CONFIG');
   var headers = HEADERS[nombre];
   var last = sh.getLastRow();
   if (last < 2) return [];
@@ -64,6 +70,21 @@ function agregar_(nombre, objs) {
   rg.setNumberFormat('@');
   rg.setValues(objs.map(function (o) { return filaDe_(nombre, o); }));
   objs.forEach(function (o, i) { o._fila = inicio + i; });
+}
+
+/** Reemplaza todas las filas de datos de la tabla por objs (las sobrantes quedan vacías). */
+function reescribir_(nombre, objs) {
+  var sh = hoja_(nombre), h = HEADERS[nombre];
+  var filas = objs.map(function (o) { return filaDe_(nombre, o); });
+  var antes = Math.max(0, sh.getLastRow() - 1);
+  var vacia = h.map(function () { return ''; });
+  while (filas.length < antes) filas.push(vacia);
+  if (!filas.length) return;
+  var faltan = filas.length + 1 - sh.getMaxRows();
+  if (faltan > 0) sh.insertRowsAfter(sh.getMaxRows(), faltan);
+  var rg = sh.getRange(2, 1, filas.length, h.length);
+  rg.setNumberFormat('@');
+  rg.setValues(filas);
 }
 
 /** Reescribe una fila existente (obj debe traer _fila). */
