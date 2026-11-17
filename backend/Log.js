@@ -398,25 +398,46 @@ function ejecutarLog_(ctx, d) {
 /** El LOG del proyecto (lo ve todo usuario de Calidad, incluido el cliente). */
 /**
  * Filas del LOG sin dueño (su QC no era usuario de la app al cargarlas): si ahora existe un usuario del proyecto
- * con ese nombre, pasan a ser suyas. Solo escribe la columna Usuario y solo en filas vacías (nunca cambia un dueño).
+ * con ese nombre, pasan a ser suyas, y también los CÓDIGOS que se crearon desde esas filas (Origen LOG).
+ * Solo escribe la columna Usuario y solo donde está vacía (nunca cambia un dueño). Devuelve { filas, codigos }.
  */
 function vincularLogSinDueno_(proyecto) {
   var us = usuariosDelProyecto_(proyecto);
-  var pend = leer_(SH.LOG).filter(function (l) { return l.Proyecto === proyecto && !l.Usuario && l.QC && duenoPorNombre(l.QC, us); });
-  if (!pend.length) return 0;
+  var logs0 = leer_(SH.LOG).filter(function (l) { return l.Proyecto === proyecto; });
+  var duenoDeCodigo = {};
+  logs0.forEach(function (l) { if (l.Usuario && l.Codigo_Completo) duenoDeCodigo[l.Codigo_Completo] = l.Usuario; });
+  var hayLog = logs0.some(function (l) { return !l.Usuario && l.QC && duenoPorNombre(l.QC, us); });
+  var hayReg = leer_(SH.REGISTROS).some(function (r) { return r.Proyecto === proyecto && r.Origen === 'LOG' && !r.Usuario; });
+  if (!hayLog && !hayReg) return { filas: 0, codigos: 0 };
   return conLock_(function () {
-    var col = HEADERS[SH.LOG].indexOf('Usuario') + 1, n = 0;
+    var res = { filas: 0, codigos: 0 };
+    // 1) filas del LOG
     var logs = leer_(SH.LOG);
-    if (!logs.length) return 0;
-    var sh = hoja_(SH.LOG), primera = 2, ultima = logs[logs.length - 1]._fila;
-    var rg = sh.getRange(primera, col, ultima - primera + 1, 1), vals = rg.getValues();
-    logs.forEach(function (l) {
-      if (l.Proyecto !== proyecto || l.Usuario || !l.QC) return;
-      var c = duenoPorNombre(l.QC, us);
-      if (c) { vals[l._fila - primera][0] = c; n++; }
-    });
-    if (n) { rg.setNumberFormat('@'); rg.setValues(vals.map(function (v) { return [celda_(v[0])]; })); }
-    return n;
+    if (logs.length) {
+      var colL = HEADERS[SH.LOG].indexOf('Usuario') + 1, ultL = logs[logs.length - 1]._fila;
+      var rgL = hoja_(SH.LOG).getRange(2, colL, ultL - 1, 1), vL = rgL.getValues();
+      logs.forEach(function (l) {
+        if (l.Proyecto !== proyecto) return;
+        if (!l.Usuario && l.QC) {
+          var c = duenoPorNombre(l.QC, us);
+          if (c) { vL[l._fila - 2][0] = c; l.Usuario = c; res.filas++; }
+        }
+        if (l.Usuario && l.Codigo_Completo) duenoDeCodigo[l.Codigo_Completo] = l.Usuario;
+      });
+      if (res.filas) { rgL.setNumberFormat('@'); rgL.setValues(vL.map(function (v) { return [celda_(v[0])]; })); }
+    }
+    // 2) códigos creados desde el LOG que quedaron sin dueño
+    var regs = leer_(SH.REGISTROS);
+    if (regs.length) {
+      var colR = HEADERS[SH.REGISTROS].indexOf('Usuario') + 1, ultR = regs[regs.length - 1]._fila;
+      var rgR = hoja_(SH.REGISTROS).getRange(2, colR, ultR - 1, 1), vR = rgR.getValues();
+      regs.forEach(function (r) {
+        if (r.Proyecto !== proyecto || r.Origen !== 'LOG' || r.Usuario || !duenoDeCodigo[r.Codigo_Completo]) return;
+        vR[r._fila - 2][0] = duenoDeCodigo[r.Codigo_Completo]; res.codigos++;
+      });
+      if (res.codigos) { rgR.setNumberFormat('@'); rgR.setValues(vR.map(function (v) { return [celda_(v[0])]; })); }
+    }
+    return res;
   });
 }
 

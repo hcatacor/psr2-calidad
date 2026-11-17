@@ -98,7 +98,7 @@ function guardarUsuario_(ctx, d) {
     return usuarioPublico_(u, temporal ? { Clave_Temporal: temporal } : null);
   });
   // Filas del LOG sin dueño cuyo QC es esta persona: pasan a ser suyas al crearla
-  try { vincularLogSinDueno_(ctx.proyecto); } catch (e) { console.warn('Vincular LOG: ' + e); }
+  try { res.vinculados = vincularLogSinDueno_(ctx.proyecto); } catch (e) { console.warn('Vincular LOG: ' + e); }
   return res;
 }
 

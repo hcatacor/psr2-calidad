@@ -774,6 +774,9 @@ if (fsT.existsSync(logXlsx)) {
     const u = ok2(env2.llamar('usuarios.guardar', { Nombre: 'Jonathan Camarena', Usuario: 'jcamarena', Clave: 'Inicio2026', Rol: 'Operador', Area: 'Calidad', Activo: true }, p2));
     const despues = ok2(env2.llamar('log.listar', {}, p2));
     assert.strictEqual(despues.filter((l) => l.Usuario === u.Correo).length, 107);
+    const susCodigos = ok2(env2.llamar('registros.listar', {}, p2)).filter((r) => r.Usuario === u.Correo).length;
+    assert.ok(susCodigos > 0 && susCodigos === u.vinculados.codigos, 'sus códigos (protocolos) también: ' + susCodigos);
+    assert.strictEqual(u.vinculados.filas, 107);
     assert.strictEqual(sinDueno(), 0);
     let cambiadas = 0; antes.forEach((l, i) => { if (l.Usuario && l.Usuario !== despues[i].Usuario) cambiadas++; });
     assert.strictEqual(cambiadas, 0, 'los dueños que ya tenían no cambian');

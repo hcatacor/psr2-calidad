@@ -33,7 +33,7 @@ export function render(el) {
   ({ usuarios, catalogos, series, formatos, proyecto })[tab]($('#adm', el), el);
 }
 
-const recargar = async (el) => { await recargarBootstrap(); render(el); };
+const recargar = async (el) => { await recargarBootstrap(true); render(el); };
 const editable = (u) => soyYo(u.Correo) || ORDEN_ROLES.indexOf(u.Rol) > ORDEN_ROLES.indexOf(S.usuario.Rol);
 
 // ---------------------------------------------------------------- Usuarios
@@ -114,7 +114,9 @@ function editarUsuario(u, root) {
       Carga_Data: !propio && $('#u-rol', m.el).value === 'Operador' && $('#u-data', m.el).checked,
     };
     const r = await tarea(() => api('usuarios.guardar', data), 'Guardando…');
-    if (r) { m.cerrar(); toast('Usuario guardado', 'ok'); if (r.Clave_Temporal) mostrarCredenciales(r.Nombre, r.Usuario, r.Clave_Temporal); recargar(root); }
+    const vin = r && r.vinculados && (r.vinculados.filas || r.vinculados.codigos)
+      ? ` · se le asignaron ${r.vinculados.filas} filas del LOG y ${r.vinculados.codigos} códigos (por su nombre en QC)` : '';
+    if (r) { m.cerrar(); toast('Usuario guardado' + vin, 'ok'); if (r.Clave_Temporal) mostrarCredenciales(r.Nombre, r.Usuario, r.Clave_Temporal); recargar(root); }
   };
 }
 
