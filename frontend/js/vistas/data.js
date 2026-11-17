@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { S, puede } from '../state.js';
 import { $, esc, ico, modal, toast, tarea, confirmar, csvParse, csvGenerar, descargarBlob, fFechaHora, serieDe } from '../util.js';
-import { recargarBootstrap, cargarRegistros, refrescarVista } from '../app.js';
+import { recargarBootstrap, refrescarVista } from '../app.js';
 import { abrirCargaLog, descargarLog, cargaLog } from './log.js';
 
 const COLS_CARGA = ['Codigo', 'Usuario', 'Estado', 'Estado_Doc', 'Fecha', 'Actividad', 'Ubicacion', 'PK_Inicial', 'PK_Final', 'Protocolo_Topografico', 'Valorizacion'];
@@ -94,7 +94,7 @@ function pintarPrevia(m, r, filas, nombre) {
     const res = await tarea(() => api('importar.ejecutar', { filas }), 'Cargando data…');
     if (!res) return;
     toast(`${res.importados} códigos cargados (lote ${res.lote})`, 'ok');
-    await tarea(async () => { await recargarBootstrap(); await cargarRegistros({ silencioso: true }); }, 'Actualizando…');
+    await tarea(async () => { await recargarBootstrap(true); }, 'Actualizando…');
     m.cerrar();
     refrescarVista();
   };

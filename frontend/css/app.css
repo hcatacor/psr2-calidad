@@ -410,3 +410,6 @@ details.grupo[open] > summary::before { transform: rotate(90deg); }
 .entorno-sel:empty { display: none; }
 .entorno-sel .segs { display: flex; }
 .entorno-sel .seg { flex: 1; }
+
+/* Actualizando por detrás: el botón de actualizar gira */
+#btn-refrescar.girando svg { animation: gira 1s linear infinite; }

@@ -65,6 +65,8 @@ t('setup entrega usuario + contraseña temporal; con la temporal solo se puede c
   const les = cred.find((c) => c.Usuario === 'lsalazar');
   const r = e2.llamar('login', { usuario: 'LSalazar', clave: les.Clave_Temporal });
   assert.ok(r.ok && r.data.cambiarClave === true);
+  const r0 = e2.llamar('login', { usuario: 'LSalazar', clave: les.Clave_Temporal, inicio: true });
+  assert.strictEqual(r0.data.registros, undefined, 'con la temporal no se entregan códigos');
   falla(e2.llamar('registros.listar', {}, r.data.token), 'CAMBIAR_CLAVE');
   falla(e2.llamar('cuenta.cambiarClave', { actual: les.Clave_Temporal, nueva: 'corta1' }, r.data.token), 'VALIDACION');
   falla(e2.llamar('cuenta.cambiarClave', { actual: les.Clave_Temporal, nueva: 'lsalazar2026' }, r.data.token), 'VALIDACION');
@@ -396,6 +398,33 @@ t('cualquiera del proyecto (visitante/cliente) descarga para imprimir; solo el d
   assert.ok(exito(env.llamar('archivos.descargarFormato', { codigo: c }, tk.aud)).base64);
   assert.ok(exito(env.llamar('archivos.descargarFormato', { codigo: c }, tk.jen)).base64);
   falla(env.llamar('archivos.descargarFormato', { codigo: c, formato: 'PSR2-F2-CPC-CAL-EMD-FOR-0099' }, tk.aud), 'PERMISO');
+});
+t('ingreso en un solo viaje: bootstrap con inicio trae los mismos códigos y el resumen', () => {
+  const b = exito(env.llamar('bootstrap', { inicio: true }, tk.les));
+  const regs = exito(env.llamar('registros.listar', {}, tk.les));
+  assert.deepStrictEqual(b.registros.map((r) => r.Codigo_Completo), regs.map((r) => r.Codigo_Completo));
+  assert.ok('resumen' in b);
+  assert.strictEqual(exito(env.llamar('bootstrap', {}, tk.les)).registros, undefined, 'sin inicio no los trae');
+});
+t('PDF guardado: misma hoja = mismo PDF sin reconvertir; cualquier cambio lo regenera y reemplaza', () => {
+  const c = 'PSR2-F3-CPC-DRB-GLB-RGI-0001';
+  const conv = () => Object.values(env.archivos).filter((a) => /^TMP PDF/.test(a.nombre)).length;
+  const guardados = () => Object.values(env.archivos).filter((a) => /\.pdf$/.test(a.nombre) && a.descripcion && !a.trashed);
+  const n0 = conv();
+  const p1 = exito(env.llamar('archivos.descargarFormato', { codigo: c, salida: 'pdf' }, tk.les));
+  assert.strictEqual(conv(), n0 + 1);
+  const p2 = exito(env.llamar('archivos.descargarFormato', { codigo: c, salida: 'pdf' }, tk.aud));
+  assert.strictEqual(conv(), n0 + 1, 'segunda descarga: reutiliza, no convierte');
+  assert.strictEqual(p2.base64, p1.base64);
+  assert.strictEqual(guardados().length, 1);
+  exito(env.llamar('registros.editar', { codigo: c, campos: { Actividad: 'Juntas eje 4' } }, tk.les));
+  exito(env.llamar('archivos.descargarFormato', { codigo: c, salida: 'pdf' }, tk.les));
+  assert.strictEqual(conv(), n0 + 2, 'cambió la hoja: se regenera');
+  assert.strictEqual(guardados().length, 1, 'el anterior se reemplaza');
+  // con foto no se guarda nada
+  const foto = { base64: Buffer.from([255, 216, 255, 0]).toString('base64'), mime: 'image/jpeg', ancho: 10, alto: 10 };
+  exito(env.llamar('archivos.descargarFormato', { codigo: c, salida: 'pdf', foto }, tk.les));
+  assert.strictEqual(guardados().length, 1);
 });
 t('formato inactivo: no se descarga y el operador ya no lo ve', () => {
   exito(env.llamar('formatos.guardar', { ...FMT, Activo: false }, tk.prop));

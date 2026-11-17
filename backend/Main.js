@@ -84,7 +84,17 @@ function rolesAsignables_(ctx) {
 }
 
 /** Datos iniciales que necesita el frontend (tras login o al cambiar de proyecto). */
-function bootstrap_(ctx) {
+function bootstrap_(ctx, d) {
+  var b = bootstrapBase_(ctx);
+  // Ingreso en un solo viaje: con { inicio: true } trae también los códigos y el resumen del panel
+  if (d && d.inicio) {
+    b.registros = listarRegistros_(ctx);
+    try { b.resumen = resumenGruposLog_(ctx); } catch (e) { b.resumen = null; }
+  }
+  return b;
+}
+
+function bootstrapBase_(ctx) {
   // Series visibles: todas las de mi área (activas y cerradas); gestión y control ven todas.
   var series = leer_(SH.SERIES).filter(function (s) {
     return s.Proyecto === ctx.proyecto && serieDeMiArea_(ctx, s);

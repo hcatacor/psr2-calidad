@@ -165,9 +165,11 @@ function login_(data) {
     return x;
   });
   var ctx = contextoPara_(u.Correo, txt_(data.proyecto));
-  var res = bootstrap_(ctx);
+  var cambiar = esTrue_(u.Cambiar_Clave);
+  // Con contraseña temporal no se entregan datos: primero debe cambiarla
+  var res = bootstrap_(ctx, cambiar ? null : data);
   res.token = crearSesion_(u.Correo);
-  res.cambiarClave = esTrue_(u.Cambiar_Clave);
+  res.cambiarClave = cambiar;
   return res;
 }
 

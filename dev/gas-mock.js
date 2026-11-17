@@ -51,6 +51,7 @@ function crearEntorno({ usuarioEfectivo = 'propietario@usuarios.app', clientId =
   class Sheet {
     constructor(nombre) { this.nombre = nombre; this.datos = []; this.maxRows = 1000; this.maxCols = 26; this.protecciones = []; }
     getName() { return this.nombre; }
+    getSheetId() { return 0; }
     getLastRow() { for (let i = this.datos.length - 1; i >= 0; i--) if (this.datos[i] && this.datos[i].some((x) => x !== '')) return i + 1; return 0; }
     getMaxRows() { return this.maxRows; }
     getMaxColumns() { return this.maxCols; }
@@ -87,7 +88,8 @@ function crearEntorno({ usuarioEfectivo = 'propietario@usuarios.app', clientId =
     if (!a) throw new Error('Archivo no existe ' + id);
     return {
       getId: () => id, getName: () => a.nombre, getMimeType: () => a.mime, getSize: () => a.bytes.length, setName: (n) => { a.nombre = n; return fileObj(id); },
-      getBlob: () => blob(a.bytes, a.mime, a.nombre), setTrashed: (t) => { a.trashed = t; },
+      getBlob: () => blob(a.bytes, a.mime, a.nombre), setTrashed: (t) => { a.trashed = t; }, isTrashed: () => !!a.trashed,
+      setDescription: (d) => { a.descripcion = d; return fileObj(id); }, getDescription: () => a.descripcion || null,
       makeCopy: (n, carpeta) => { const nid = nuevoId('f'); archivos[nid] = { ...a, nombre: n, carpeta: carpeta.getId() }; if (sheetsPorId[id]) { const c = new Spreadsheet(n); c.hojas = JSON.parse(JSON.stringify(sheetsPorId[id].hojas)).map((h) => Object.assign(new Sheet(h.nombre), h)); sheetsPorId[nid] = c; c.id = nid; } return fileObj(nid); },
       moveTo: () => { },
     };
@@ -100,6 +102,7 @@ function crearEntorno({ usuarioEfectivo = 'propietario@usuarios.app', clientId =
       getFoldersByName: (n) => { const ids = Object.keys(carpetas).filter((k) => carpetas[k].padre === id && carpetas[k].nombre === n); let i = 0; return { hasNext: () => i < ids.length, next: () => folderObj(ids[i++]) }; },
       createFile: (b) => { const nid = nuevoId('f'); archivos[nid] = { nombre: b.nombre, bytes: b.bytes, mime: b.mime, carpeta: id }; return fileObj(nid); },
       getFiles: () => { const ids = Object.keys(archivos).filter((k) => archivos[k].carpeta === id && !archivos[k].trashed); let i = 0; return { hasNext: () => i < ids.length, next: () => fileObj(ids[i++]) }; },
+      getFilesByName: (n) => { const ids = Object.keys(archivos).filter((k) => archivos[k].carpeta === id && archivos[k].nombre === n); let i = 0; return { hasNext: () => i < ids.length, next: () => fileObj(ids[i++]) }; },
     };
   };
   const DriveApp = {
@@ -138,6 +141,8 @@ function crearEntorno({ usuarioEfectivo = 'propietario@usuarios.app', clientId =
     base64EncodeWebSafe: (x) => toBytes(x).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
     base64DecodeWebSafe: (s) => signed(Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64')),
     computeHmacSha256Signature: (v, k) => signed(crypto.createHmac('sha256', k).update(v).digest()),
+    DigestAlgorithm: { MD5: 'md5' },
+    computeDigest: (alg, v) => signed(crypto.createHash(alg).update(typeof v === 'string' ? Buffer.from(v, 'utf8') : toBytes(v)).digest()),
     newBlob: (bytes, mime, nombre) => blob(typeof bytes === 'string' ? Buffer.from(bytes) : toBytes(bytes), mime, nombre),
     unzip: (b) => zipLib.unzip(b.bytes).map((a) => blob(a.datos, 'application/octet-stream', a.nombre)),
     zip: (blobs, nombre) => blob(zipLib.zip(blobs.map((x) => ({ nombre: x.getName(), datos: x.bytes }))), 'application/zip', nombre),

@@ -1,6 +1,6 @@
 import { CONFIG, pruebasDisponibles, elegirEntorno } from './config.js';
 import { api, onSesionPerdida } from './api.js';
-import { S, guardarToken, leerToken, aplicarBootstrap, puede, guardarProyecto, leerProyecto } from './state.js';
+import { S, guardarToken, leerToken, aplicarBootstrap, puede, guardarProyecto, leerProyecto, guardarCopia, leerCopia, borrarCopia } from './state.js';
 import { $, esc, ico, toast, cargando } from './util.js';
 import { LOGOS_INGRESO, marcaDe } from './marca.js';
 import * as panel from './vistas/panel.js';
@@ -30,8 +30,10 @@ export async function cargarRegistros({ silencioso = false } = {}) {
   }
 }
 
-export async function recargarBootstrap() {
-  aplicarBootstrap(await api('bootstrap'));
+/** Recarga la configuración; con inicio=true trae también códigos y resumen en el mismo viaje. */
+export async function recargarBootstrap(inicio = false) {
+  aplicarBootstrap(await api('bootstrap', inicio ? { inicio: true } : {}));
+  if (inicio) guardarCopia();
   pintarCabecera();
 }
 
@@ -93,9 +95,11 @@ async function ingresar(usuario, clave) {
   if (!usuario || !clave) { mostrarLogin('Escribe tu usuario y contraseña.'); return; }
   cargando(true, 'Verificando…');
   try {
-    const r = await api('login', { usuario, clave, proyecto: leerProyecto() });
+    const r = await api('login', { usuario, clave, proyecto: leerProyecto(), inicio: true });
     guardarToken(r.token);
+    S.registrosEn = 0;
     aplicarBootstrap(r);
+    if (!r.cambiarClave) guardarCopia();
     $('#l-clave').value = '';
     if (r.cambiarClave) { pedirCambioClave(true); return; }
     await continuarIngreso();
@@ -150,7 +154,7 @@ function elegirProyecto() {
     b.onclick = async () => {
       cargando(true, 'Ingresando…');
       try {
-        if (b.dataset.p !== S.proyecto) { guardarProyecto(b.dataset.p); aplicarBootstrap(await api('bootstrap')); }
+        if (b.dataset.p !== S.proyecto) { guardarProyecto(b.dataset.p); S.registrosEn = 0; await recargarBootstrap(true); }
         $('#elegir').hidden = true;
         location.hash = '#/panel';
         await iniciarApp();
@@ -161,7 +165,8 @@ function elegirProyecto() {
 
 function cerrarSesion(mensaje = '') {
   guardarToken(null);
-  S.registros = [];
+  borrarCopia();
+  S.registros = []; S.registrosEn = 0; S.resumen = null; S.resumenEn = 0;
   location.hash = '';
   mostrarLogin(mensaje, !!mensaje);
 }
@@ -190,7 +195,7 @@ async function iniciarApp() {
   $('#elegir').hidden = true;
   $('#app').hidden = false;
   pintarCabecera();
-  await cargarRegistros();
+  if (!S.registrosEn) await cargarRegistros(); // normalmente ya llegaron con el ingreso (un solo viaje)
   router();
 }
 
@@ -212,9 +217,8 @@ $('#sel-proyecto').onchange = async (e) => {
   try {
     cargando(true, 'Cambiando de proyecto…');
     guardarProyecto(e.target.value);
-    S.registros = [];
-    await recargarBootstrap();
-    await cargarRegistros({ silencioso: true });
+    S.registros = []; S.registrosEn = 0;
+    await recargarBootstrap(true);
     location.hash = '#/panel';
     router();
     toast('Proyecto ' + S.proyecto);
@@ -223,22 +227,47 @@ $('#sel-proyecto').onchange = async (e) => {
 $('#btn-refrescar').onclick = async () => {
   try {
     cargando(true, 'Actualizando…');
-    await recargarBootstrap();
-    await cargarRegistros({ silencioso: true });
+    await recargarBootstrap(true);
     router();
     toast('Datos actualizados');
   } catch (e) { toast(e.message, 'err'); } finally { cargando(false); }
 };
 
 // ---------------------------------------------------------------- Arranque
+// Al ocultar la app (cambiar de pestaña, bloquear el celular) se guarda la copia con lo último visto
+document.addEventListener('visibilitychange', () => { if (document.hidden && S.token && S.usuario) guardarCopia(); });
+
+/** Trae los datos frescos sin bloquear la pantalla; solo redibuja si el usuario no está escribiendo ni en un diálogo. */
+async function actualizarPorDetras() {
+  const ruta = location.hash, btn = $('#btn-refrescar');
+  btn.classList.add('girando');
+  try {
+    aplicarBootstrap(await api('bootstrap', { inicio: true }));
+    guardarCopia();
+    const ocupado = document.querySelector('.modal') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
+    if (location.hash === ruta && !ocupado) router(); else pintarCabecera();
+  } catch (e) {
+    if (e.code === 'RED') toast('Sin conexión: estás viendo los últimos datos guardados en este equipo.', 'err');
+  } finally { btn.classList.remove('girando'); }
+}
+
 (async function arrancar() {
   const t = leerToken();
   if (!t) return mostrarLogin();
   guardarToken(t);
   S.proyecto = leerProyecto();
+  const copia = leerCopia();
+  if (copia && copia.b.proyecto === S.proyecto) {
+    // Pantalla inmediata con lo último visto y actualización por detrás
+    aplicarBootstrap(copia.b, copia.en);
+    await iniciarApp();
+    actualizarPorDetras();
+    return;
+  }
   cargando(true, 'Cargando…');
   try {
-    aplicarBootstrap(await api('bootstrap'));
+    aplicarBootstrap(await api('bootstrap', { inicio: true }));
+    guardarCopia();
     await iniciarApp();
   } catch (e) {
     if (e.code === 'RED') mostrarLogin(e.message);

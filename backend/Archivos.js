@@ -220,7 +220,48 @@ function llenarXlsx_(blob, valores, nombre, ficha) {
   if (ficha && ficha.foto && f.estructura && f.estructura.foto) {
     salida = insertarFoto_(salida, f.partes[f.indice].getName(), f.estructura.foto, ficha.foto);
   }
+  llenarXlsx_.ultimo.huella = huellaPartes_(salida, PDF_AJUSTE + '|' + llenarXlsx_.ultimo.posicion + '|' + llenarXlsx_.ultimo.horizontal);
   return Utilities.zip(salida, nombre).setContentType(MIME_XLSX);
+}
+
+// ---------------------------------------------------------------- PDF guardado (descarga rápida)
+// Si cambia la configuración de impresión de xlsxAPdf_, cambiar este texto: todos los PDF se vuelven a generar.
+var PDF_AJUSTE = 'A4-scale4-m0.4';
+
+/** Huella del contenido exacto de la hoja llena: cambia con cualquier letra, número o firma distinta. */
+function huellaPartes_(partes, extra) {
+  var md5 = function (x) { return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, x)); };
+  var t = [extra];
+  partes.forEach(function (p) { t.push(p.getName() + ':' + md5(p.getBytes())); });
+  return md5(t.join('|'));
+}
+
+/**
+ * Devuelve el PDF guardado si la hoja no cambió (misma huella); si cambió o no existe, lo genera,
+ * reemplaza el anterior y lo guarda. Un PDF viejo nunca se entrega. Si el guardado falla, igual se genera.
+ */
+function pdfGuardado_(nombre, huella, generar) {
+  var carpeta = null;
+  try {
+    var props = PropertiesService.getScriptProperties(), id = props.getProperty('PDF_ID');
+    try { if (id) carpeta = DriveApp.getFolderById(id); } catch (e) { carpeta = null; }
+    if (!carpeta) { carpeta = subcarpeta_(DriveApp.getFolderById(prop_('ROOT_ID')), 'PDF guardados'); props.setProperty('PDF_ID', carpeta.getId()); }
+    var viejos = [], it = carpeta.getFilesByName(nombre);
+    while (it.hasNext()) {
+      var f = it.next();
+      if (f.isTrashed()) continue;
+      if (f.getDescription() === huella) return f.getBlob().getBytes();
+      viejos.push(f);
+    }
+  } catch (e) { console.warn('PDF guardado no disponible: ' + e); carpeta = null; }
+  var bytes = generar();
+  if (carpeta) {
+    try {
+      viejos.forEach(function (v) { v.setTrashed(true); });
+      carpeta.createFile(Utilities.newBlob(bytes, 'application/pdf', nombre)).setDescription(huella);
+    } catch (e) { console.warn('No se pudo guardar el PDF: ' + e); }
+  }
+  return bytes;
 }
 
 // ---------------------------------------------------------------- Foto dentro del recuadro del formato
@@ -329,7 +370,8 @@ function insertarFoto_(salida, rutaHoja, area, foto) {
  */
 function descargarFormato_(ctx, d) {
   // Cualquier usuario del proyecto (incluido el cliente/Visitante) puede descargar la hoja para imprimir:
-  // se arma al momento con los datos guardados; no se almacena ningún archivo.
+  // se arma con los datos guardados. El PDF de una hoja xlsx sin foto se guarda en "PDF guardados" y se
+  // reutiliza mientras la hoja no cambie (huella del contenido); cualquier cambio lo vuelve a generar.
   var reg = buscarRegistro_(leer_(SH.REGISTROS), d.codigo, ctx.proyecto);
   var puedeAsociar = esDueno_(ctx, reg) || puede_(ctx, 'administrar');
   var codFormato = txt_(d.formato).toUpperCase() || reg.Formato;
@@ -354,7 +396,10 @@ function descargarFormato_(ctx, d) {
     var lleno = llenarXlsx_(DriveApp.getFileById(formato.Plantilla_ID).getBlob(), valoresMarcadores_(ctx, reg, serie, formato), base + '.xlsx', ficha);
     if (d.salida === 'pdf') {
       var u = llenarXlsx_.ultimo || {};
-      res = { nombre: base + '.pdf', mime: 'application/pdf', bytes: xlsxAPdf_(lleno, u.posicion || 0, u.horizontal), ext: 'pdf' };
+      var generar = function () { return xlsxAPdf_(lleno, u.posicion || 0, u.horizontal); };
+      // Con foto no se guarda nada (la foto no se almacena); sin foto, se reutiliza el PDF si la hoja no cambió
+      var bytesPdf = ficha.foto || !u.huella ? generar() : pdfGuardado_(base + ' · ' + codFormato + '.pdf', u.huella, generar);
+      res = { nombre: base + '.pdf', mime: 'application/pdf', bytes: bytesPdf, ext: 'pdf' };
     } else res = { nombre: base + '.xlsx', mime: MIME_XLSX, bytes: lleno.getBytes(), ext: 'xlsx' };
   } else {
     var pdf = d.salida === 'pdf';

@@ -295,6 +295,32 @@ function cargaInicialLog() {
  * "REVISIÓN PDF" dentro de la carpeta del sistema, para revisar de una vez que ninguno se salga de la hoja.
  * Ejecutar desde el editor; hace hasta 8 por ejecución (repetir hasta "REVISIÓN COMPLETA"). Para rehacerlos, borra la carpeta.
  */
+/**
+ * MANTENER DESPIERTO: ejecutar UNA vez "activarDespierto" desde el editor (en cada proyecto: real y pruebas).
+ * Crea un activador cada 10 min que toca el script y la hoja en horario laboral (6:00–21:00 Lima, lun–sáb),
+ * para que el primer usuario no espere el arranque en frío. Gasta ~2 min/día de los 90 gratuitos.
+ * Para quitarlo: ejecutar "desactivarDespierto".
+ */
+function mantenerDespierto() {
+  var ahora = new Date();
+  var h = +Utilities.formatDate(ahora, 'America/Lima', 'H'), dia = +Utilities.formatDate(ahora, 'America/Lima', 'u'); // u: 1=lun … 7=dom
+  if (dia === 7 || h < 6 || h >= 21) return;
+  leer_(SH.USUARIOS);
+}
+
+function activarDespierto() {
+  desactivarDespierto();
+  ScriptApp.newTrigger('mantenerDespierto').timeBased().everyMinutes(10).create();
+  mantenerDespierto();
+  console.log('ACTIVADO: el script se mantiene despierto cada 10 min (lun–sáb, 6:00–21:00).');
+}
+
+function desactivarDespierto() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'mantenerDespierto') ScriptApp.deleteTrigger(t);
+  });
+}
+
 function revisarPdfs() {
   var t0 = Date.now(), LOTE = 8, LIMITE_MS = 4 * 60 * 1000;
   var raiz = DriveApp.getFolderById(prop_('ROOT_ID'));

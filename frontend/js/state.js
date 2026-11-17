@@ -16,6 +16,8 @@ export const S = {
   marcadores: [],
   registros: [],
   registrosEn: 0,
+  resumen: null,
+  resumenEn: 0,
 };
 
 // Sesión separada por ambiente (real / período de pruebas): nunca se cruzan
@@ -35,7 +37,24 @@ export function leerToken() { return leer(CLAVE()); }
 export function guardarProyecto(p) { S.proyecto = p; guardar(CLAVE_P(), p); }
 export function leerProyecto() { return leer(CLAVE_P()) || ''; }
 
-export function aplicarBootstrap(b) {
+// Copia local de lo último que vio el usuario: la app abre al instante y se actualiza por detrás.
+// Se borra al cerrar sesión.
+const CLAVE_C = () => PREF() + 'copia';
+const CAMPOS_COPIA = ['app', 'usuario', 'permisos', 'rolesAsignables', 'config', 'proyecto', 'proyectos', 'series', 'catalogos', 'formatos', 'usuarios', 'marcadores', 'registros', 'resumen'];
+export function guardarCopia() {
+  if (!S.usuario) return;
+  const b = {};
+  CAMPOS_COPIA.forEach((k) => { b[k] = S[k]; });
+  try { localStorage.setItem(CLAVE_C(), JSON.stringify({ en: Date.now(), b })); } catch (e) { borrarCopia(); /* sin espacio: sin copia */ }
+}
+export function leerCopia() {
+  try { const c = JSON.parse(localStorage.getItem(CLAVE_C()) || 'null'); return c && c.b && c.b.usuario ? c : null; } catch (e) { return null; }
+}
+export function borrarCopia() { try { localStorage.removeItem(CLAVE_C()); } catch (e) { /* sin storage */ } }
+
+export function aplicarBootstrap(b, en = Date.now()) {
+  if (b.registros) { S.registros = b.registros; S.registrosEn = en; }
+  if ('resumen' in b) { S.resumen = b.resumen; S.resumenEn = en; }
   S.app = b.app;
   S.usuario = b.usuario;
   S.permisos = b.permisos;

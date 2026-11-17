@@ -3,7 +3,7 @@
 import { api } from '../api.js';
 import { S, puede, soyYo } from '../state.js';
 import { $, esc, ico, modal, toast, tarea, confirmar, nombreDe, fFechaHora, base64ABlob, descargarBlob, archivoParaApi } from '../util.js';
-import { recargarBootstrap, cargarRegistros, refrescarVista } from '../app.js';
+import { recargarBootstrap, refrescarVista } from '../app.js';
 
 let filas = null;
 const f = { q: '', ver: 'obs', estatus: '', limite: 200 };
@@ -43,8 +43,14 @@ const resumenDe = (lista) => GRUPOS.map(([g, n]) => {
 /** Resumen para el Panel: Calidad (LOG) y Topografía (sus códigos), según lo que ve el usuario. */
 export async function pintarResumenPanel(cont) {
   if (!cont) return;
-  let r;
-  try { r = await api('log.resumen', {}); } catch (e) { cont.innerHTML = ''; return; }
+  // Pinta al instante lo que ya se tiene (llegó con el ingreso) y solo consulta si tiene más de 1 minuto
+  if (S.resumen) pintarResumen(cont, S.resumen);
+  if (S.resumen && Date.now() - S.resumenEn < 60000) return;
+  try { S.resumen = await api('log.resumen', {}); S.resumenEn = Date.now(); } catch (e) { if (!S.resumen) cont.innerHTML = ''; return; }
+  if (cont.isConnected) pintarResumen(cont, S.resumen);
+}
+
+function pintarResumen(cont, r) {
   const cards = [];
   if (r.calidad) cards.push(htmlResumen('Calidad · estado por grupo', r.calidad,
     r.calidadFilas ? 'Desde el LOG. Concluido = CERRADO · Observado = con observación sin revisar · el resto pendiente.' : 'Aún no se ha cargado el LOG.'));
@@ -162,13 +168,13 @@ function abrirFila(l, el) {
     m.el.querySelectorAll('[data-k]:not([disabled])').forEach((i) => { if (i.value.trim() !== String(l[i.dataset.k] || '')) cambios[i.dataset.k] = i.value.trim(); });
     if (!Object.keys(cambios).length) { toast('Sin cambios'); return; }
     const n = await tarea(() => api('log.editar', { id: l.ID, cambios }), 'Guardando…');
-    if (n) { actualizar(n); toast('Fila del LOG actualizada', 'ok'); m.cerrar(); }
+    if (n) { S.resumenEn = 0; actualizar(n); toast('Fila del LOG actualizada', 'ok'); m.cerrar(); }
   };
   const rev = $('#l-rev', m.el);
   if (rev) rev.onclick = async () => {
     if (!(await confirmar({ titulo: 'Marcar revisada', mensaje: 'La fila deja de figurar como observada (los motivos quedan anotados). ¿Continuar?', boton: 'Marcar revisada' }))) return;
     const n = await tarea(() => api('log.revisar', { id: l.ID }), 'Guardando…');
-    if (n) { actualizar(n); toast('Fila revisada', 'ok'); m.cerrar(); }
+    if (n) { S.resumenEn = 0; actualizar(n); toast('Fila revisada', 'ok'); m.cerrar(); }
   };
 }
 
@@ -218,7 +224,7 @@ export function abrirCargaLog(despues) {
       const res = await tarea(() => api('log.ejecutar', { base64: arch.base64, nombre: file.name }), 'Cargando LOG…');
       if (!res) return;
       toast(`LOG cargado: ${res.filas} filas, ${res.observadas} observadas`, 'ok');
-      await tarea(async () => { await recargarBootstrap(); await cargarRegistros({ silencioso: true }); }, 'Actualizando…');
+      await tarea(async () => { await recargarBootstrap(true); }, 'Actualizando…');
       m.cerrar();
       if (despues) despues(); else refrescarVista();
     };
