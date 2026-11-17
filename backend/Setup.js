@@ -83,7 +83,9 @@ function setup() {
   var dueno = Session.getEffectiveUser().getEmail().toLowerCase();
 
   // 1. Carpetas en Drive
-  var raiz = obtenerOCrearCarpeta_(props, 'ROOT_ID', null, 'PSR2 Calidad - Sistema');
+  // Ambiente de PRUEBAS (copia independiente de la app): sus carpetas y hoja llevan " (PRUEBAS)" en el nombre
+  var suf = props.getProperty('ENTORNO') === 'PRUEBAS' ? ' (PRUEBAS)' : '';
+  var raiz = obtenerOCrearCarpeta_(props, 'ROOT_ID', null, 'PSR2 Calidad - Sistema' + suf);
   obtenerOCrearCarpeta_(props, 'FINALES_ID', raiz, 'Finales');
   obtenerOCrearCarpeta_(props, 'PLANTILLAS_ID', raiz, 'Plantillas');
   obtenerOCrearCarpeta_(props, 'TEMPORAL_ID', raiz, 'Temporal');
@@ -94,7 +96,7 @@ function setup() {
   if (ssId) {
     ss = SpreadsheetApp.openById(ssId);
   } else {
-    ss = SpreadsheetApp.create('PSR2 Calidad - Base de datos');
+    ss = SpreadsheetApp.create('PSR2 Calidad - Base de datos' + suf);
     DriveApp.getFileById(ss.getId()).moveTo(raiz);
     props.setProperty('SS_ID', ss.getId());
   }
@@ -197,6 +199,18 @@ function setup() {
 }
 
 /**
+ * AMBIENTE DE PRUEBAS: en el proyecto de Apps Script de pruebas (no en el real) ejecutar esta función en lugar de setup.
+ * Crea su propia hoja y carpeta con " (PRUEBAS)" en el nombre; los datos no se mezclan con la app real.
+ */
+function setupPruebas() {
+  var props = PropertiesService.getScriptProperties();
+  var ent = props.getProperty('ENTORNO');
+  if (props.getProperty('SS_ID') && ent !== 'PRUEBAS') throw new Error('Este proyecto ya tiene datos de la app REAL: setupPruebas solo va en el proyecto de pruebas.');
+  props.setProperty('ENTORNO', 'PRUEBAS');
+  return setup();
+}
+
+/**
  * CARGA INICIAL en un solo paso (ejecutar desde el editor con la cuenta hcat, después de setup):
  *  1) En Drive, dentro de la carpeta "PSR2 Calidad - Sistema", subir la carpeta "CARGA INICIAL" tal cual
  *     (con sus subcarpetas 1-FORMATOS y 2-LOG).
@@ -208,7 +222,8 @@ function cargaInicial() {
   var inicio = Date.now(), LIMITE_MS = 4.5 * 60 * 1000;
   var raiz = DriveApp.getFolderById(prop_('ROOT_ID'));
   var it = raiz.getFoldersByName('CARGA INICIAL');
-  if (!it.hasNext()) throw new Error('No está la carpeta "CARGA INICIAL" dentro de "PSR2 Calidad - Sistema". Súbela allí y vuelve a ejecutar.');
+  if (!it.hasNext()) it = DriveApp.getFoldersByName('CARGA INICIAL'); // también si se subió a otra carpeta del Drive (una sola vez sirve para real y pruebas)
+  if (!it.hasNext()) throw new Error('No está la carpeta "CARGA INICIAL" en el Drive de esta cuenta. Súbela y vuelve a ejecutar.');
   var carga = it.next();
   var sub = function (n) { var x = carga.getFoldersByName(n); return x.hasNext() ? x.next() : null; };
   var dueno = Session.getEffectiveUser().getEmail().toLowerCase();

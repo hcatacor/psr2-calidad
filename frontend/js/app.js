@@ -41,6 +41,15 @@ export function refrescarVista() {
 }
 
 // ---------------------------------------------------------------- Login
+// Ambiente de pruebas: franja fija para que nadie lo confunda con la app real
+if (CONFIG.ENTORNO) {
+  const f = document.createElement('div');
+  f.className = 'franja-entorno';
+  f.textContent = `AMBIENTE DE ${CONFIG.ENTORNO} · datos de práctica, no son registros reales`;
+  document.body.prepend(f);
+  document.title = `[${CONFIG.ENTORNO}] ` + document.title;
+}
+
 function mostrarLogin(mensaje = '', info = false) {
   $('#app').hidden = true;
   $('#elegir').hidden = true;
@@ -57,7 +66,7 @@ function mostrarLogin(mensaje = '', info = false) {
       ${CONFIG.DEV_USUARIOS.map((u) => `<button class="btn btn-block" type="button" data-dev="${esc(u.correo)}" data-u="${esc(u.usuario)}">${esc(u.nombre)} · ${esc(u.usuario)}</button>`).join('')}</div>`;
     document.querySelectorAll('[data-dev]').forEach((b) => { b.onclick = () => ingresar(b.dataset.u, CONFIG.DEV_CLAVE); });
   } else if (CONFIG.API_URL.startsWith('PEGAR')) {
-    msg.textContent = 'Falta configurar API_URL en js/config.js (ver README).';
+    msg.textContent = CONFIG.ENTORNO ? 'El ambiente de pruebas aún no está conectado.' : 'Falta configurar API_URL en js/config.js (ver README).';
     msg.className = 'login-msg';
   }
 }

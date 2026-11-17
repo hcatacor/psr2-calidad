@@ -25,8 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Armar sitio (app real en / y ambiente de pruebas en /pruebas/)
+        run: |
+          mkdir -p _site/pruebas
+          cp -r frontend/. _site/
+          cp -r frontend/. _site/pruebas/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

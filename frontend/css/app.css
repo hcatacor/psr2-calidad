@@ -402,3 +402,6 @@ details.grupo[open] > summary::before { transform: rotate(90deg); }
 .credenciales { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; border: 1px dashed var(--border); border-radius: 10px; background: var(--surface-2); }
 .credenciales div { display: flex; flex-direction: column; gap: 2px; }
 .credenciales b { font-size: 17px; }
+
+/* Ambiente de pruebas */
+.franja-entorno { position: sticky; top: 0; z-index: 1000; background: #c2410c; color: #fff; text-align: center; font-size: 12px; font-weight: 600; padding: 4px 8px; letter-spacing: .02em; }

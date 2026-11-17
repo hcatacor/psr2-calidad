@@ -8,3 +8,6 @@ entrega/
 
 # Documento interno del proyecto (reglas, nombres, decisiones): no se publica
 NORMAS.md
+
+# Copias locales para desplegar el ambiente de pruebas (clasp)
+despliegue/

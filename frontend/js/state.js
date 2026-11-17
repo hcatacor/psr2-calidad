@@ -17,8 +17,10 @@ export const S = {
   registrosEn: 0,
 };
 
-const CLAVE = 'psr2cal.token';
-const CLAVE_P = 'psr2cal.proyecto';
+// Sesión separada por ambiente (real / pruebas comparten dominio en GitHub Pages)
+const PREF = /\/pruebas\//.test(location.pathname) ? 'psr2cal.pruebas.' : 'psr2cal.';
+const CLAVE = PREF + 'token';
+const CLAVE_P = PREF + 'proyecto';
 
 function guardar(k, v) {
   try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) { /* sin storage */ }

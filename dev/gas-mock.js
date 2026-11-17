@@ -105,6 +105,7 @@ function crearEntorno({ usuarioEfectivo = 'propietario@usuarios.app', clientId =
   const DriveApp = {
     createFolder: (n) => { const id = nuevoId('d'); carpetas[id] = { nombre: n, padre: null }; return folderObj(id); },
     getFolderById: folderObj,
+    getFoldersByName: (n) => { const ids = Object.keys(carpetas).filter((k) => carpetas[k].nombre === n); let i = 0; return { hasNext: () => i < ids.length, next: () => folderObj(ids[i++]) }; },
     getFileById: (id) => { if (sheetsPorId[id] && !archivos[id]) archivos[id] = { nombre: sheetsPorId[id].nombre, bytes: Buffer.from(''), mime: 'application/vnd.google-apps.spreadsheet' }; return fileObj(id); },
   };
   const Drive = {
