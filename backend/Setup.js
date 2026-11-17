@@ -211,71 +211,83 @@ function setupPruebas() {
 }
 
 /**
- * CARGA INICIAL en un solo paso (ejecutar desde el editor con la cuenta hcat, después de setup):
- *  1) En Drive, dentro de la carpeta "PSR2 Calidad - Sistema", subir la carpeta "CARGA INICIAL" tal cual
- *     (con sus subcarpetas 1-FORMATOS y 2-LOG).
- *  2) Elegir la función "cargaInicial" → Ejecutar. El registro muestra cada formato y el resumen del LOG.
- * Usa exactamente la misma lógica que la app (Administración → Formatos y LOG → Cargar LOG).
- * Se puede volver a ejecutar: lo ya cargado se salta (no duplica). Si se acerca al límite de tiempo, se detiene y avisa.
+ * CARGA INICIAL (ejecutar desde el editor con la cuenta hcat, después de setup / setupPruebas):
+ *  0) Subir a Drive la carpeta "CARGA INICIAL" (con 1-FORMATOS y 2-LOG); sirve una sola vez para real y pruebas.
+ *  1) Función "cargaInicial" → Ejecutar: registra los formatos de a 10 por ejecución. Repetir hasta que diga
+ *     "FORMATOS COMPLETOS" (lo ya cargado se salta; no duplica).
+ *  2) Función "cargaInicialLog" → Ejecutar: carga el LOG (si ya estaba, no duplica).
+ * Usa la misma lógica que la app (Administración → Formatos y LOG → Cargar LOG). El registro muestra cada paso con su tiempo.
  */
-function cargaInicial() {
-  var inicio = Date.now(), LIMITE_MS = 4.5 * 60 * 1000;
+function carpetaCarga_() {
   var raiz = DriveApp.getFolderById(prop_('ROOT_ID'));
   var it = raiz.getFoldersByName('CARGA INICIAL');
-  if (!it.hasNext()) it = DriveApp.getFoldersByName('CARGA INICIAL'); // también si se subió a otra carpeta del Drive (una sola vez sirve para real y pruebas)
+  if (!it.hasNext()) it = DriveApp.getFoldersByName('CARGA INICIAL'); // también si se subió a otra carpeta del Drive
   if (!it.hasNext()) throw new Error('No está la carpeta "CARGA INICIAL" en el Drive de esta cuenta. Súbela y vuelve a ejecutar.');
   var carga = it.next();
-  var sub = function (n) { var x = carga.getFoldersByName(n); return x.hasNext() ? x.next() : null; };
-  var dueno = Session.getEffectiveUser().getEmail().toLowerCase();
-  var ctx = contextoPara_(dueno, SEMILLA_PROYECTO.ID_Proyecto);
-  var out = { formatos: 0, saltados: 0, avisos: [], log: null, completo: true };
+  return { carpeta: carga, sub: function (n) { var x = carga.getFoldersByName(n); return x.hasNext() ? x.next() : null; } };
+}
 
-  // 1) Formatos aprobados (.xlsx)
-  var fFor = sub('1-FORMATOS');
-  if (!fFor) out.avisos.push('Falta la subcarpeta 1-FORMATOS.');
-  else {
-    var ya = {};
-    formatosDe_(ctx.proyecto).forEach(function (f) { ya[f.Codigo_Formato] = true; });
-    var archivos = [], fi = fFor.getFiles();
-    while (fi.hasNext()) archivos.push(fi.next());
-    archivos.sort(function (a, b) { return a.getName() < b.getName() ? -1 : 1; });
-    for (var i = 0; i < archivos.length; i++) {
-      var a = archivos[i], nom = a.getName();
-      var m = /(PSR2-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-FOR-\d{4})/i.exec(nom);
-      if (!m) { out.avisos.push('Sin código FOR en el nombre, no se cargó: ' + nom); continue; }
-      var cod = m[1].toUpperCase();
-      if (a.getMimeType() !== MIME_XLSX) { out.avisos.push(cod + ': no es .xlsx (¿Drive lo convirtió a Hoja de Google?). Súbelo de nuevo como archivo Excel.'); continue; }
-      if (ya[cod]) { out.saltados++; continue; }
-      if (Date.now() - inicio > LIMITE_MS) { out.completo = false; break; }
-      var f = guardarFormato_(ctx, { Codigo_Formato: cod, archivo: { nombre: cod + '.xlsx', mime: MIME_XLSX, base64: Utilities.base64Encode(a.getBlob().getBytes()) } });
-      ya[cod] = true; out.formatos++;
-      console.log('Formato ' + cod + ' · ' + (f.Nombre || '(sin título)'));
-    }
+function ctxPropietario_() {
+  return contextoPara_(Session.getEffectiveUser().getEmail().toLowerCase(), SEMILLA_PROYECTO.ID_Proyecto);
+}
+
+function cargaInicial() {
+  var t0 = Date.now(), LOTE = 10, LIMITE_MS = 4 * 60 * 1000;
+  var seg = function () { return ((Date.now() - t0) / 1000).toFixed(1) + ' s'; };
+  console.log('Ambiente: ' + (PropertiesService.getScriptProperties().getProperty('ENTORNO') || 'REAL') + ' · buscando la carpeta CARGA INICIAL…');
+  var c = carpetaCarga_();
+  var fFor = c.sub('1-FORMATOS');
+  if (!fFor) throw new Error('Falta la subcarpeta 1-FORMATOS dentro de CARGA INICIAL.');
+  var ctx = ctxPropietario_();
+  var ya = {};
+  formatosDe_(ctx.proyecto).forEach(function (f) { ya[f.Codigo_Formato] = true; });
+  var archivos = [], fi = fFor.getFiles();
+  while (fi.hasNext()) archivos.push(fi.next());
+  archivos.sort(function (a, b) { return a.getName() < b.getName() ? -1 : 1; });
+  console.log('Archivos en 1-FORMATOS: ' + archivos.length + ' · ya registrados: ' + Object.keys(ya).length + ' (' + seg() + ')');
+  var hechos = 0, pendientes = 0, avisos = [];
+  for (var i = 0; i < archivos.length; i++) {
+    var a = archivos[i], nom = a.getName();
+    var m = /(PSR2-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-[A-Z0-9]+-FOR-\d{4})/i.exec(nom);
+    if (!m) { avisos.push('Sin código FOR en el nombre, no se cargó: ' + nom); continue; }
+    var cod = m[1].toUpperCase();
+    if (ya[cod]) continue;
+    if (a.getMimeType() !== MIME_XLSX) { avisos.push(cod + ': no es .xlsx (' + a.getMimeType() + '). Súbelo de nuevo como archivo Excel.'); continue; }
+    if (hechos >= LOTE || Date.now() - t0 > LIMITE_MS) { pendientes++; continue; }
+    console.log('→ ' + cod + ': leyendo (' + Math.round(a.getSize() / 1024) + ' KB)… ' + seg());
+    var b64 = Utilities.base64Encode(a.getBlob().getBytes());
+    console.log('  registrando… ' + seg());
+    var f = guardarFormato_(ctx, { Codigo_Formato: cod, archivo: { nombre: cod + '.xlsx', mime: MIME_XLSX, base64: b64 } });
+    ya[cod] = true; hechos++;
+    console.log('  ✓ ' + (f.Nombre || '(sin título)') + ' · ' + seg());
   }
+  avisos.forEach(function (t) { console.warn(t); });
+  console.log('Formatos registrados en esta ejecución: ' + hechos + ' · total en la app: ' + Object.keys(ya).length + ' (' + seg() + ')');
+  if (pendientes) console.warn('Faltan ' + pendientes + ' formatos: vuelve a ejecutar cargaInicial (no duplica).');
+  else console.log('FORMATOS COMPLETOS. Siguiente: ejecutar cargaInicialLog.');
+  return { hechos: hechos, total: Object.keys(ya).length, pendientes: pendientes, avisos: avisos };
+}
 
-  // 2) LOG de Calidad (solo si terminaron los formatos y queda tiempo)
-  var fLog = sub('2-LOG');
-  if (out.completo && fLog && Date.now() - inicio < LIMITE_MS) {
-    var li = fLog.getFiles(), xl = null;
-    while (li.hasNext()) { var x = li.next(); if (x.getMimeType() === MIME_XLSX) { xl = x; break; } }
-    if (!xl) out.avisos.push('No hay un .xlsx en 2-LOG.');
-    else {
-      var b64 = Utilities.base64Encode(xl.getBlob().getBytes());
-      var prev = previsualizarLog_(ctx, { base64: b64, nombre: xl.getName() });
-      if (!prev.cargar) out.log = 'ya estaba cargado (' + prev.omitidas + ' filas)';
-      else {
-        var r = ejecutarLog_(ctx, { base64: b64, nombre: xl.getName() });
-        out.log = r.filas + ' filas (' + r.observadas + ' observadas), ' + r.codigos + ' códigos · contadores: ' + (r.ajustes.join(', ') || 'sin cambios');
-      }
-    }
-  } else if (!fLog) out.avisos.push('Falta la subcarpeta 2-LOG.');
-
-  console.log('Formatos cargados: ' + out.formatos + ' · ya estaban: ' + out.saltados);
-  console.log('LOG: ' + (out.log || (out.completo ? 'no cargado' : 'pendiente')));
-  out.avisos.forEach(function (t) { console.warn(t); });
-  if (!out.completo) console.warn('Se detuvo por tiempo: vuelve a ejecutar cargaInicial para terminar (no duplica).');
-  else console.log('CARGA INICIAL COMPLETA');
-  return out;
+function cargaInicialLog() {
+  var t0 = Date.now();
+  var seg = function () { return ((Date.now() - t0) / 1000).toFixed(1) + ' s'; };
+  var c = carpetaCarga_();
+  var fLog = c.sub('2-LOG');
+  if (!fLog) throw new Error('Falta la subcarpeta 2-LOG dentro de CARGA INICIAL.');
+  var li = fLog.getFiles(), xl = null;
+  while (li.hasNext()) { var x = li.next(); if (x.getMimeType() === MIME_XLSX) { xl = x; break; } }
+  if (!xl) throw new Error('No hay un .xlsx en 2-LOG.');
+  var ctx = ctxPropietario_();
+  console.log('LOG: leyendo ' + xl.getName() + ' (' + Math.round(xl.getSize() / 1024) + ' KB)… ' + seg());
+  var b64 = Utilities.base64Encode(xl.getBlob().getBytes());
+  console.log('LOG: revisando filas… ' + seg());
+  var prev = previsualizarLog_(ctx, { base64: b64, nombre: xl.getName() });
+  console.log('LOG: ' + prev.cargar + ' filas por cargar, ' + prev.observadas + ' observadas, ' + prev.omitidas + ' ya estaban (' + seg() + ')');
+  if (!prev.cargar) { console.log('LOG YA ESTABA CARGADO.'); return prev; }
+  console.log('LOG: guardando… ' + seg());
+  var r = ejecutarLog_(ctx, { base64: b64, nombre: xl.getName() });
+  console.log('LOG CARGADO: ' + r.filas + ' filas (' + r.observadas + ' observadas), ' + r.codigos + ' códigos · contadores: ' + (r.ajustes.join(', ') || 'sin cambios') + ' (' + seg() + ')');
+  return r;
 }
 
 function obtenerOCrearCarpeta_(props, clave, padre, nombre) {
