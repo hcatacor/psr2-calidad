@@ -1,0 +1,11 @@
+{
+  "name": "psr2-calidad",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PSR2 Calidad — correlativos de protocolo y formatos (Apps Script + GitHub Pages)",
+  "scripts": {
+    "test": "node dev/test.js",
+    "dev": "node dev/server.js",
+    "carga": "node dev/preparar-carga.js"
+  }
+}

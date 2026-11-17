@@ -1,0 +1,10 @@
+# Datos de referencia con correos reales: nunca al repositorio
+data/
+node_modules/
+.clasp.json
+.clasprc.json
+*.log
+entrega/
+
+# Documento interno del proyecto (reglas, nombres, decisiones): no se publica
+NORMAS.md

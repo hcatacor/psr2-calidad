@@ -1,0 +1,1 @@
+﻿PSR2 Calidad - version 2026-11-16 v2: ingreso con USUARIO Y CONTRASEÑA propios (sin Google). Verificar: backend/Auth.js contiene 'function login_' con 'usuario' y 'clave', y NO contiene 'verificarIdToken_'.
