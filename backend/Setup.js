@@ -290,6 +290,36 @@ function cargaInicialLog() {
   return r;
 }
 
+/**
+ * REVISIÓN DE IMPRESIÓN: genera el PDF (como lo arma la app) de cada formato aprobado, vacío, en la carpeta
+ * "REVISIÓN PDF" dentro de la carpeta del sistema, para revisar de una vez que ninguno se salga de la hoja.
+ * Ejecutar desde el editor; hace hasta 8 por ejecución (repetir hasta "REVISIÓN COMPLETA"). Para rehacerlos, borra la carpeta.
+ */
+function revisarPdfs() {
+  var t0 = Date.now(), LOTE = 8, LIMITE_MS = 4 * 60 * 1000;
+  var raiz = DriveApp.getFolderById(prop_('ROOT_ID'));
+  var it = raiz.getFoldersByName('REVISIÓN PDF');
+  var dest = it.hasNext() ? it.next() : raiz.createFolder('REVISIÓN PDF');
+  var ya = {}, fi = dest.getFiles();
+  while (fi.hasNext()) ya[fi.next().getName()] = true;
+  var hechos = 0, pendientes = 0;
+  formatosDe_(SEMILLA_PROYECTO.ID_Proyecto).filter(function (f) { return f.Plantilla_Tipo === 'xlsx' && esTrue_(f.Activo); })
+    .sort(function (a, b) { return a.Codigo_Formato < b.Codigo_Formato ? -1 : 1; })
+    .forEach(function (f) {
+      var nombre = f.Codigo_Formato.split('-').slice(-3).join('-') + ' · ' + (f.Nombre || '') + '.pdf';
+      if (ya[nombre]) return;
+      if (hechos >= LOTE || Date.now() - t0 > LIMITE_MS) { pendientes++; return; }
+      var blob = DriveApp.getFileById(f.Plantilla_ID).getBlob();
+      var fi2 = abrirFicha_(Utilities.newBlob(blob.getBytes(), MIME_XLSX, 'x.xlsx'));
+      var bytes = xlsxAPdf_(Utilities.newBlob(blob.getBytes(), MIME_XLSX, 'x.xlsx'), fi2.posicion || 0, !!fi2.horizontal);
+      dest.createFile(Utilities.newBlob(bytes, 'application/pdf', nombre));
+      hechos++;
+      console.log('✓ ' + nombre + ' (' + ((Date.now() - t0) / 1000).toFixed(1) + ' s)');
+    });
+  console.log('PDF generados ahora: ' + hechos + (pendientes ? ' · faltan ' + pendientes + ': vuelve a ejecutar revisarPdfs' : ' · REVISIÓN COMPLETA'));
+  console.log('Carpeta: ' + dest.getUrl());
+}
+
 function obtenerOCrearCarpeta_(props, clave, padre, nombre) {
   var id = props.getProperty(clave);
   if (id) {

@@ -188,8 +188,9 @@ function xlsxAPdf_(xlsxBlob, posicion, horizontal) {
   try {
     var hojas = SpreadsheetApp.openById(meta.id).getSheets();
     var gid = (hojas[posicion] || hojas[0]).getSheetId();
+    // scale=4: la ficha completa (cuadros de firma incluidos) entra en UNA página, igual que en Excel; nunca se corta
     var url = 'https://docs.google.com/spreadsheets/d/' + meta.id + '/export?format=pdf&gid=' + gid + '&size=A4&portrait=' + (!horizontal) +
-      '&fitw=true&gridlines=false&printtitle=false&sheetnames=false&pagenum=UNDEFINED&fzr=false&horizontal_alignment=CENTER' +
+      '&scale=4&gridlines=false&printtitle=false&sheetnames=false&pagenum=UNDEFINED&fzr=false&horizontal_alignment=CENTER&vertical_alignment=TOP' +
       '&top_margin=0.4&bottom_margin=0.4&left_margin=0.4&right_margin=0.4';
     var resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
     if (resp.getResponseCode() !== 200) throw err_('No se pudo generar el PDF (HTTP ' + resp.getResponseCode() + ').', 'INTERNO');
