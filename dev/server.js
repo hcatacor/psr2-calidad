@@ -87,7 +87,9 @@ http.createServer((req, res) => {
   }
   if (url === '/js/config.js') {
     res.writeHead(200, { 'Content-Type': TIPOS['.js'] });
-    res.end(`export const CONFIG = { API_URL: '/api', DEV: true, DEV_CLAVE: '${env.CLAVE_DEV}', DEV_USUARIOS: ${JSON.stringify(USUARIOS_DEV)} };`);
+    res.end(`export const CONFIG = { API_URL: '/api', ENTORNO: '', DEV: true, DEV_CLAVE: '${env.CLAVE_DEV}', DEV_USUARIOS: ${JSON.stringify(USUARIOS_DEV)} };
+export const pruebasDisponibles = () => false;
+export function elegirEntorno() {}`);
     return;
   }
   const archivo = path.normalize(path.join(raiz, url === '/' ? 'index.html' : url));

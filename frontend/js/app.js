@@ -1,4 +1,4 @@
-import { CONFIG } from './config.js';
+import { CONFIG, pruebasDisponibles, elegirEntorno } from './config.js';
 import { api, onSesionPerdida } from './api.js';
 import { S, guardarToken, leerToken, aplicarBootstrap, puede, guardarProyecto, leerProyecto } from './state.js';
 import { $, esc, ico, toast, cargando } from './util.js';
@@ -41,14 +41,20 @@ export function refrescarVista() {
 }
 
 // ---------------------------------------------------------------- Login
-// Ambiente de pruebas: franja fija para que nadie lo confunda con la app real
-if (CONFIG.ENTORNO) {
-  const f = document.createElement('div');
-  f.className = 'franja-entorno';
-  f.textContent = `AMBIENTE DE ${CONFIG.ENTORNO} · datos de práctica, no son registros reales`;
-  document.body.prepend(f);
-  document.title = `[${CONFIG.ENTORNO}] ` + document.title;
+// Período de pruebas: franja fija para que nadie lo confunda con la app real
+const TITULO = document.title;
+function pintarEntorno() {
+  let f = document.querySelector('.franja-entorno');
+  if (CONFIG.ENTORNO) {
+    if (!f) { f = document.createElement('div'); f.className = 'franja-entorno'; document.body.prepend(f); }
+    f.textContent = 'PERÍODO DE PRUEBAS · datos de práctica, no son registros reales';
+    document.title = '[PRUEBAS] ' + TITULO;
+  } else {
+    if (f) f.remove();
+    document.title = TITULO;
+  }
 }
+pintarEntorno();
 
 function mostrarLogin(mensaje = '', info = false) {
   $('#app').hidden = true;
@@ -59,6 +65,18 @@ function mostrarLogin(mensaje = '', info = false) {
   msg.textContent = mensaje;
   msg.className = 'login-msg' + (info ? ' info' : '');
   $('#login-form').onsubmit = (e) => { e.preventDefault(); ingresar($('#l-usuario').value.trim(), $('#l-clave').value); };
+  // Selector de ambiente (solo mientras dure el período de pruebas)
+  const sel = $('#entorno-sel');
+  if (pruebasDisponibles()) {
+    const fin = CONFIG.PRUEBAS_HASTA.split('-').reverse().join('/');
+    sel.innerHTML = `<span class="small muted">Ingresar a</span>
+      <div class="segs"><button type="button" class="seg ${CONFIG.ENTORNO ? '' : 'on'}" data-ent="">App real</button>
+        <button type="button" class="seg ${CONFIG.ENTORNO ? 'on on-NO' : ''}" data-ent="PRUEBAS">Período de pruebas</button></div>
+      <span class="small muted">${CONFIG.ENTORNO ? 'Datos de práctica, separados de la app real.' : `Período de pruebas disponible hasta el ${fin}.`}</span>`;
+    sel.querySelectorAll('[data-ent]').forEach((b) => {
+      b.onclick = () => { elegirEntorno(b.dataset.ent); pintarEntorno(); S.token = leerToken(); mostrarLogin(); };
+    });
+  } else sel.innerHTML = '';
   if (CONFIG.DEV) {
     // Solo servidor de desarrollo local (dev/server.js): accesos rápidos con la contraseña de prueba.
     $('#dev-login').innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;width:100%">
@@ -66,7 +84,7 @@ function mostrarLogin(mensaje = '', info = false) {
       ${CONFIG.DEV_USUARIOS.map((u) => `<button class="btn btn-block" type="button" data-dev="${esc(u.correo)}" data-u="${esc(u.usuario)}">${esc(u.nombre)} · ${esc(u.usuario)}</button>`).join('')}</div>`;
     document.querySelectorAll('[data-dev]').forEach((b) => { b.onclick = () => ingresar(b.dataset.u, CONFIG.DEV_CLAVE); });
   } else if (CONFIG.API_URL.startsWith('PEGAR')) {
-    msg.textContent = CONFIG.ENTORNO ? 'El ambiente de pruebas aún no está conectado.' : 'Falta configurar API_URL en js/config.js (ver README).';
+    msg.textContent = 'Falta configurar API_URL en js/config.js (ver README).';
     msg.className = 'login-msg';
   }
 }

@@ -1,3 +1,4 @@
+import { CONFIG } from './config.js';
 // Estado global de la sesión.
 export const S = {
   token: null,
@@ -17,10 +18,10 @@ export const S = {
   registrosEn: 0,
 };
 
-// Sesión separada por ambiente (real / pruebas comparten dominio en GitHub Pages)
-const PREF = /\/pruebas\//.test(location.pathname) ? 'psr2cal.pruebas.' : 'psr2cal.';
-const CLAVE = PREF + 'token';
-const CLAVE_P = PREF + 'proyecto';
+// Sesión separada por ambiente (real / período de pruebas): nunca se cruzan
+const PREF = () => (CONFIG.ENTORNO ? 'psr2cal.pruebas.' : 'psr2cal.');
+const CLAVE = () => PREF() + 'token';
+const CLAVE_P = () => PREF() + 'proyecto';
 
 function guardar(k, v) {
   try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) { /* sin storage */ }
@@ -29,10 +30,10 @@ function leer(k) {
   try { return localStorage.getItem(k); } catch (e) { return null; }
 }
 
-export function guardarToken(t) { S.token = t; guardar(CLAVE, t); }
-export function leerToken() { return leer(CLAVE); }
-export function guardarProyecto(p) { S.proyecto = p; guardar(CLAVE_P, p); }
-export function leerProyecto() { return leer(CLAVE_P) || ''; }
+export function guardarToken(t) { S.token = t; guardar(CLAVE(), t); }
+export function leerToken() { return leer(CLAVE()); }
+export function guardarProyecto(p) { S.proyecto = p; guardar(CLAVE_P(), p); }
+export function leerProyecto() { return leer(CLAVE_P()) || ''; }
 
 export function aplicarBootstrap(b) {
   S.app = b.app;
