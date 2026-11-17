@@ -1,4 +1,5 @@
 name: Publicar frontend en GitHub Pages
+# Se publica al subir cambios en frontend/ (o en este archivo). También: Actions → Run workflow.
 
 on:
   push:
