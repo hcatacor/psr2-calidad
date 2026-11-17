@@ -453,6 +453,11 @@ function filaLog_(ctx, id) {
   if (!l) throw err_('Fila del LOG no encontrada.', 'NO_EXISTE');
   return l;
 }
+/** ObsdO = observado de origen: fila de la carga inicial que ya venía observada (protocolo ya registrado/firmado).
+ *  Es historial de solo lectura: sus datos no se corrigen ni se "revisan". Estatus/Transmital/Aconex siguen siendo de Control Documentario. */
+function esObsdO(l) { return !!l.Motivos && l.Origen === 'Carga inicial'; }
+var MSG_OBSDO = 'Fila ObsdO (observado de origen): es historial de solo lectura; protocolo ya registrado.';
+
 function esDuenoLog_(ctx, l) { return puede_(ctx, 'generar') && !!l.Usuario && correo_(l.Usuario) === correo_(ctx.usuario.Correo); }
 
 /** Corrige una fila: el dueño sus datos; ESTATUS, TRANSMITAL y FECHA ACONEX solo Control Documentario o superiores. */
@@ -464,6 +469,7 @@ function editarLog_(ctx, d) {
     var c = d.cambios || {}, hechos = [];
     CAMPOS_LOG_DUENO.concat(CAMPOS_LOG_CONTROL).forEach(function (k) {
       if (c[k] === undefined || txt_(c[k]) === l[k]) return;
+      if (esObsdO(l) && CAMPOS_LOG_DUENO.indexOf(k) >= 0) throw err_(MSG_OBSDO, 'NEGOCIO');
       if (CAMPOS_LOG_CONTROL.indexOf(k) >= 0 && !control) throw err_(k.replace('_', ' ') + ' lo cambia solo Control Documentario o superiores.', 'PERMISO');
       var v = txt_(c[k]).substring(0, 500);
       if (k === 'Estatus') { v = v.toUpperCase(); if (['ABIERTO', 'CERRADO'].indexOf(v) < 0) throw err_('Estatus: ABIERTO o CERRADO.', 'VALIDACION'); }
@@ -492,6 +498,7 @@ function revisarLog_(ctx, d) {
     var l = filaLog_(ctx, d.id);
     if (!puede_(ctx, 'documentar') && !esDuenoLog_(ctx, l)) throw err_('Solo el dueño de la fila o Control Documentario la revisa.', 'PERMISO');
     if (!l.Motivos) throw err_('La fila no está observada.', 'NEGOCIO');
+    if (esObsdO(l)) throw err_(MSG_OBSDO, 'NEGOCIO');
     l.Revisado_Por = ctx.usuario.Correo;
     l.Fecha_Revision = iso_();
     actualizar_(SH.LOG, l);

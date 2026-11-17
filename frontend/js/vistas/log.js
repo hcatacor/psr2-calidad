@@ -6,7 +6,7 @@ import { $, esc, ico, modal, toast, tarea, confirmar, nombreDe, fFechaHora, base
 import { recargarBootstrap, refrescarVista } from '../app.js';
 
 let filas = null;
-const f = { q: '', ver: 'obs', estatus: '', limite: 200 };
+const f = { q: '', ver: 'todas', estatus: '', limite: 200, pestana: 'log' };
 
 const CAMPOS = [
   ['Rev', 'Rev.'], ['Descripcion', 'Descripción / estructura', 'ancho'], ['Especialidad', 'Especialidad / disciplina'], ['Tramo', 'Tramo'],
@@ -62,20 +62,24 @@ function pintarResumen(cont, r) {
 
 export const veLog = () => puede('historial') || puede('auditar') || puede('documentar') || (S.usuario.Area || 'Calidad') === 'Calidad';
 export const cargaLog = () => puede('data') && (puede('documentar') || (S.usuario.Area || 'Calidad') === 'Calidad');
-const observada = (l) => !!l.Motivos && !l.Revisado_Por;
-const puedeEditar = (l) => puede('documentar') || (puede('generar') && soyYo(l.Usuario));
+// ObsdO = observado de origen (carga inicial, protocolo ya registrado): historial de solo lectura, pestaña aparte.
+// Obs = observación nueva hecha desde la app: es la que se revisa y corrige.
+const esObsdO = (l) => !!l.Motivos && l.Origen === 'Carga inicial';
+const observada = (l) => !!l.Motivos && !l.Revisado_Por && !esObsdO(l);
+const puedeEditar = (l) => !esObsdO(l) && (puede('documentar') || (puede('generar') && soyYo(l.Usuario)));
 
 export function render(el) {
   el.innerHTML = `
-    <div class="page-head"><div><h1>LOG de liberaciones</h1><p>Registro A–AC de Calidad. Las filas observadas las revisa su dueño (QC) o Control Documentario.</p></div>
+    <div class="page-head"><div><h1>LOG de liberaciones</h1><p>Registro A–AC de Calidad. Obs = observación nueva desde la app (la revisa su dueño o Control Documentario) · ObsdO = observado de origen (historial).</p></div>
       <div class="btn-row">${cargaLog() ? `<button class="btn" id="g-cargar">${ico('subir')}Cargar LOG</button>` : ''}
         <button class="btn btn-primary" id="g-bajar">${ico('bajar')}Descargar LOG</button></div></div>
     <div id="g-resumen" style="margin-bottom:16px"></div>
+    <div class="tabs" role="tablist" id="g-tabs"></div>
     <div class="card">
       <div class="toolbar">
         <input id="g-q" class="grow" type="search" placeholder="Correlativo, CPC, descripción, partida…" value="${esc(f.q)}">
         <select id="g-ver" style="max-width:220px">
-          ${[['obs', 'Observadas por revisar'], ['todas', 'Todas'], ['mias', 'Mis filas'], ['revisadas', 'Observadas ya revisadas'], ['sindueno', 'Sin dueño']]
+          ${[['todas', 'Todas'], ['obs', 'Obs por revisar'], ['mias', 'Mis filas'], ['revisadas', 'Obs ya revisadas'], ['sindueno', 'Sin dueño']]
             .map(([v, t]) => `<option value="${v}" ${f.ver === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
         <select id="g-est" style="max-width:160px"><option value="">Todo estatus</option>
           ${['ABIERTO', 'CERRADO'].map((v) => `<option ${f.estatus === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
@@ -98,11 +102,21 @@ async function cargar(el) {
 
 function pintar(el) {
   const q = f.q.toUpperCase();
+  const hist = f.pestana === 'obsdo';
+  const nObsdO = filas.filter(esObsdO).length;
+  const tabs = $('#g-tabs', el);
+  if (tabs) {
+    tabs.innerHTML = [['log', 'LOG'], ['obsdo', `Historial ObsdO (${nObsdO})`]]
+      .map(([k, t]) => `<button data-pes="${k}" class="${f.pestana === k ? 'activo' : ''}">${t}</button>`).join('');
+    tabs.querySelectorAll('[data-pes]').forEach((b) => { b.onclick = () => { f.pestana = b.dataset.pes; f.limite = 200; pintar(el); }; });
+  }
+  const ver = $('#g-ver', el); if (ver) ver.hidden = hist;
   const l = filas.filter((x) => {
-    if (f.ver === 'obs' && !observada(x)) return false;
-    if (f.ver === 'revisadas' && !(x.Motivos && x.Revisado_Por)) return false;
-    if (f.ver === 'mias' && !soyYo(x.Usuario)) return false;
-    if (f.ver === 'sindueno' && x.Usuario) return false;
+    if (hist) { if (!esObsdO(x)) return false; }
+    else if (f.ver === 'obs' && !observada(x)) return false;
+    if (!hist && f.ver === 'revisadas' && !(x.Motivos && x.Revisado_Por && !esObsdO(x))) return false;
+    if (!hist && f.ver === 'mias' && !soyYo(x.Usuario)) return false;
+    if (!hist && f.ver === 'sindueno' && x.Usuario) return false;
     if (f.estatus && String(x.Estatus).trim().toUpperCase() !== f.estatus) return false;
     return !q || [x.Codigo_Completo, x.CPC, x.CPC_Original, x.Descripcion, x.Partida, x.N, x.QC].some((v) => String(v || '').toUpperCase().includes(q));
   });
@@ -111,9 +125,10 @@ function pintar(el) {
   if (rz) rz.innerHTML = filas.length ? htmlResumen('Estado por grupo', resumenDe(filas), NOTA_CALIDAD, 'Abiertos') : '';
   $('#g-lista', el).innerHTML = !filas.length
     ? `<div class="vacio">Aún no se ha cargado el LOG.${cargaLog() ? ' Usa <b>Cargar LOG</b> con el Excel actual (hoja LOG).' : ''}</div>`
-    : `<div class="toolbar" style="border:0;flex-wrap:wrap"><span class="small muted">${filas.length} filas · <b>${nObs}</b> observadas por revisar · mostrando ${Math.min(l.length, f.limite)} de ${l.length}</span>
+    : `${hist ? '<div class="aviso" style="margin:12px 12px 0"><b>Historial ObsdO · observados de origen.</b> Filas que ya venían observadas en el LOG cargado (protocolos ya registrados y firmados). Solo consulta: no se corrigen ni se revisan. Las observaciones nuevas (Obs) se hacen desde la app.</div>' : ''}
+    <div class="toolbar" style="border:0;flex-wrap:wrap"><span class="small muted">${filas.length} filas · <b>${nObs}</b> Obs por revisar · ${nObsdO} ObsdO (historial) · mostrando ${Math.min(l.length, f.limite)} de ${l.length}</span>
       <span class="small"><span class="corr">■ Corregido por la app</span> <span class="muted">(acrónimos y listas ya acordados; el Excel del LOG sale como se llenó)</span></span></div>
-    ${l.length ? `<div class="tabla-wrap"><table class="tabla stack"><thead><tr><th>N°</th><th>Correlativo</th><th>CPC</th><th>Descripción</th><th>Localización</th><th>Fecha</th><th>Estatus</th><th>QC</th><th>Dueño en la app</th><th></th></tr></thead><tbody>
+    ${l.length ? `<div class="tabla-wrap"><table class="tabla stack"><thead><tr><th>N°</th><th>Correlativo</th><th>CPC</th><th>Descripción</th><th>Localización</th><th>Fecha</th><th>Estatus</th><th>QC</th><th>Dueño en la app</th>${hist ? '<th>Motivo de la observación</th>' : ''}<th></th></tr></thead><tbody>
       ${l.slice(0, f.limite).map((x) => `<tr class="click" data-id="${esc(x.ID)}">
         <td class="td-main">${esc(x.N)}</td>
         <td data-l="Correlativo" class="mono small">${esc(x.Codigo_Completo) || '<span class="muted">sin correlativo</span>'}</td>
@@ -124,7 +139,8 @@ function pintar(el) {
         <td data-l="Estatus">${esc(x.Estatus)}</td>
         <td data-l="QC" class="small">${esc(x.QC)}</td>
         <td data-l="Dueño" class="small">${x.Usuario ? esc(nombreDe(x.Usuario)) : '<span class="muted">sin dueño</span>'}</td>
-        <td>${observada(x) ? '<span class="badge b-Observado">OBS</span>' : x.Motivos ? '<span class="badge b-Validado">Revisada</span>' : ''}</td></tr>`).join('')}
+        ${hist ? `<td data-l="Motivo" class="small">${esc(x.Motivos.split(' | ').join(' · '))}</td>` : ''}
+        <td>${esObsdO(x) ? '<span class="badge b-off" title="Observado de origen (historial)">ObsdO</span>' : observada(x) ? '<span class="badge b-Observado">Obs</span>' : x.Motivos ? '<span class="badge b-Validado">Revisada</span>' : ''}</td></tr>`).join('')}
     </tbody></table></div>
     ${l.length > f.limite ? '<div class="btn-row" style="justify-content:center;padding:12px"><button class="btn" id="g-mas">Ver más</button></div>' : ''}`
     : '<div class="vacio">Ninguna fila con esos filtros.</div>'}`;
@@ -145,7 +161,7 @@ function abrirFila(l, el) {
     titulo: `LOG N° ${esc(l.N)} · ${esc(l.Codigo_Completo || 'sin correlativo')}`,
     cuerpo: `
       ${Object.keys(corr).length ? `<p class="small" style="margin:0"><span class="corr">■ Corregido por la app</span> <span class="muted">según las listas y acrónimos ya acordados; el Excel del LOG sale con lo que se llenó.</span></p>` : ''}
-      ${l.Motivos ? `<div class="aviso ${l.Revisado_Por ? 'aviso-ok' : 'aviso-err'}"><b>${l.Revisado_Por ? 'Observada · revisada' : 'Observada'}</b>
+      ${l.Motivos ? `<div class="aviso ${esObsdO(l) ? '' : l.Revisado_Por ? 'aviso-ok' : 'aviso-err'}"><b>${esObsdO(l) ? 'ObsdO · observado de origen (historial, solo lectura)' : l.Revisado_Por ? 'Obs · revisada' : 'Obs · observada'}</b>
         <ul style="margin:6px 0 0 18px;padding:0">${l.Motivos.split(' | ').map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
         ${l.Revisado_Por ? `<div class="small">Revisó ${esc(nombreDe(l.Revisado_Por))} · ${fFechaHora(l.Fecha_Revision)}</div>` : ''}</div>` : ''}
       <div class="form-grid">

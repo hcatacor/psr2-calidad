@@ -781,6 +781,17 @@ if (fsT.existsSync(logXlsx)) {
     let cambiadas = 0; antes.forEach((l, i) => { if (l.Usuario && l.Usuario !== despues[i].Usuario) cambiadas++; });
     assert.strictEqual(cambiadas, 0, 'los dueños que ya tenían no cambian');
   });
+  t('ObsdO (observados de origen): historial de solo lectura; Control Documentario sigue llevando el Estatus', () => {
+    const l = ok2(env2.llamar('log.listar', {}, p2));
+    const obsdo = l.filter((x) => x.Motivos && x.Origen === 'Carga inicial');
+    assert.strictEqual(obsdo.length, 115);
+    const x = obsdo.find((y) => y.Estatus);
+    falla(env2.llamar('log.editar', { id: x.ID, cambios: { Observacion: 'cambio' } }, p2), 'NEGOCIO');
+    falla(env2.llamar('log.revisar', { id: x.ID }, p2), 'NEGOCIO');
+    const otro = x.Estatus === 'CERRADO' ? 'ABIERTO' : 'CERRADO';
+    assert.strictEqual(ok2(env2.llamar('log.editar', { id: x.ID, cambios: { Estatus: otro } }, p2)).Estatus, otro);
+    ok2(env2.llamar('log.editar', { id: x.ID, cambios: { Estatus: x.Estatus } }, p2));
+  });
   t('resumen por grupo (EMD · GLB · PTS) según la columna V: CERRADO verde, ABIERTO rojo, vacío pendiente', () => {
     const r = ok2(env2.llamar('log.resumen', {}, p2));
     const g = Object.fromEntries(r.calidad.map((x) => [x.grupo, x]));
